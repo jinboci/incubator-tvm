@@ -31,7 +31,7 @@ namespace arith {
 using namespace tir;
 
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const ForNode* op) {
-  analyzer_->Bind(op->loop_var, Range::make_by_min_extent(op->min, op->extent));
+  analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
   return StmtExprMutator::VisitStmt_(op);
 }
 
@@ -97,7 +97,7 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == tir::attr::thread_extent || op->attr_key == tir::attr::virtual_thread) {
     IterVar iv = Downcast<IterVar>(op->node);
     CHECK_NE(iv->thread_tag.length(), 0U);
-    analyzer_->Bind(iv->var, Range::make_by_min_extent(0, op->value));
+    analyzer_->Bind(iv->var, Range::FromMinExtent(0, op->value));
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     return stmt;
   } else {
@@ -146,7 +146,7 @@ PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const CallNode* op) {
         false_value.same_as(op->args[2])) {
       return GetRef<PrimExpr>(op);
     } else {
-      return Call(op->dtype, op->op, {cond, true_value, false_value}, op->call_type);
+      return Call(op->dtype, op->op, {cond, true_value, false_value});
     }
   }
   return StmtExprMutator::VisitExpr_(op);
