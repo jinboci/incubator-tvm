@@ -20,7 +20,7 @@
 /*!
  *  Optional module when build cuda is switched to off
  */
-#include "../../runtime/cuda/cuda_module.h"
+// #include "../../runtime/cuda/cuda_module.h"
 namespace tvm {
 namespace runtime {
 
