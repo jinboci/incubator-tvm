@@ -21,6 +21,11 @@
  * \file cuda_device_api.cc
  * \brief GPU specific API
  */
+
+#ifndef CUDA_COMPILE_ONLY
+#define CUDA_COMPILE_ONLY
+#endif
+
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <dmlc/thread_local.h>
@@ -67,10 +72,12 @@ class CUDADeviceAPI final : public DeviceAPI {
         return;
       }
       case kDeviceName: {
+#ifndef CUDA_COMPILE_ONLY
         std::string name(256, 0);
         CUDA_DRIVER_CALL(cuDeviceGetName(&name[0], name.size(), ctx.device_id));
         name.resize(strlen(name.c_str()));
         *rv = std::move(name);
+#endif
         return;
       }
       case kMaxClockRate: {

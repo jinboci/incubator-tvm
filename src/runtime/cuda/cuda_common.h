@@ -24,6 +24,10 @@
 #ifndef TVM_RUNTIME_CUDA_CUDA_COMMON_H_
 #define TVM_RUNTIME_CUDA_CUDA_COMMON_H_
 
+#ifndef CUDA_COMPILE_ONLY
+#define CUDA_COMPILE_ONLY
+#endif
+
 #include <cuda_runtime.h>
 #include <tvm/runtime/packed_func.h>
 
@@ -34,6 +38,7 @@
 namespace tvm {
 namespace runtime {
 
+#ifndef CUDA_COMPILE_ONLY
 #define CUDA_DRIVER_CALL(x)                                             \
   {                                                                     \
     CUresult result = x;                                                \
@@ -43,6 +48,7 @@ namespace runtime {
       LOG(FATAL) << "CUDAError: " #x " failed with error: " << msg;     \
     }                                                                   \
   }
+#endif
 
 #define CUDA_CALL(func)                                                                            \
   {                                                                                                \

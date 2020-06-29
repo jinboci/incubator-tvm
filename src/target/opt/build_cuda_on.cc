@@ -23,6 +23,11 @@
  *
  * \file build_cuda.cc
  */
+
+#ifndef CUDA_COMPILE_ONLY
+#define CUDA_COMPILE_ONLY
+#endif
+
 #if defined(__linux__)
 #include <sys/stat.h>
 #endif
@@ -32,7 +37,7 @@
 #include <cstdlib>
 
 #include "../../runtime/cuda/cuda_common.h"
-// #include "../../runtime/cuda/cuda_module.h"
+#include "../../runtime/cuda/cuda_module.h"
 #include "../build_common.h"
 #include "../source/codegen_cuda.h"
 
@@ -151,6 +156,11 @@ runtime::Module BuildCUDA(IRModule mod, std::string target) {
   } else {
     ptx = NVRTCCompile(code, cg.need_include_path());
   }
+// #ifndef CUDA_COMPILE_ONLY
+//   std::cout << "#ifndef CUDA_COMPILE_ONLY" << std::endl;
+// #else
+//   std::cout << "CUDA_COMPILE_ONLY is defined: " << CUDA_COMPILE_ONLY << std::endl;
+// #endif
   return CUDAModuleCreate(ptx, fmt, ExtractFuncInfo(mod), code);
 }
 
