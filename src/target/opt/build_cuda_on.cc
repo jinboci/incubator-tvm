@@ -151,6 +151,11 @@ runtime::Module BuildCUDA(IRModule mod, std::string target) {
   } else {
     ptx = NVRTCCompile(code, cg.need_include_path());
   }
+// #ifndef CUDA_COMPILE_ONLY
+//   std::cout << "#ifndef CUDA_COMPILE_ONLY" << std::endl;
+// #else
+//   std::cout << "CUDA_COMPILE_ONLY is defined: " << CUDA_COMPILE_ONLY << std::endl;
+// #endif
   return CUDAModuleCreate(ptx, fmt, ExtractFuncInfo(mod), code);
 }
 
