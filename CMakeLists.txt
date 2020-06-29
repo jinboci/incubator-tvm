@@ -21,7 +21,7 @@ endif()
 # You can create a config.cmake at build folder
 # and add set(OPTION VALUE) to override these build options.
 # Alernatively, use cmake -DOPTION=VALUE through command-line.
-tvm_option(USE_CUDA "Build with CUDA" ON)
+tvm_option(USE_CUDA "Build with CUDA" OFF)
 tvm_option(USE_OPENCL "Build with OpenCL" OFF)
 tvm_option(USE_VULKAN "Build with Vulkan" OFF)
 tvm_option(USE_METAL "Build with Metal" OFF)
@@ -31,7 +31,7 @@ tvm_option(USE_HEXAGON_DEVICE "Build with Hexagon device support in TVM runtime"
 tvm_option(USE_HEXAGON_SDK "Path to the Hexagon SDK root (required for Hexagon support in TVM runtime or for building TVM runtime for Hexagon)" /path/to/sdk)
 tvm_option(USE_RPC "Build with RPC" ON)
 tvm_option(USE_THREADS "Build with thread support" ON)
-tvm_option(USE_LLVM "Build with LLVM, can be set to specific llvm-config path" ON)
+tvm_option(USE_LLVM "Build with LLVM, can be set to specific llvm-config path" OFF)
 tvm_option(USE_STACKVM_RUNTIME "Include stackvm into the runtime" OFF)
 tvm_option(USE_GRAPH_RUNTIME "Build with tiny graph runtime" ON)
 tvm_option(USE_GRAPH_RUNTIME_DEBUG "Build with tiny graph runtime debug mode" OFF)
