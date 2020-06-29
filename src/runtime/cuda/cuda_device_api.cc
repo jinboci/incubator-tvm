@@ -21,11 +21,6 @@
  * \file cuda_device_api.cc
  * \brief GPU specific API
  */
-
-#ifndef CUDA_COMPILE_ONLY
-#define CUDA_COMPILE_ONLY
-#endif
-
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <dmlc/thread_local.h>

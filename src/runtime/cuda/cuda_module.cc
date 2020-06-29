@@ -20,10 +20,6 @@
 /*!
  * \file cuda_module.cc
  */
-
-#ifndef CUDA_COMPILE_ONLY
-#define CUDA_COMPILE_ONLY
-#endif
 #include "cuda_module.h"
 
 #ifndef CUDA_COMPILE_ONLY

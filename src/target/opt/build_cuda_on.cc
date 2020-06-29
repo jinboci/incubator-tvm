@@ -23,11 +23,6 @@
  *
  * \file build_cuda.cc
  */
-
-#ifndef CUDA_COMPILE_ONLY
-#define CUDA_COMPILE_ONLY
-#endif
-
 #if defined(__linux__)
 #include <sys/stat.h>
 #endif
