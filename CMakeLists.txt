@@ -42,6 +42,7 @@ tvm_option(USE_MSVC_MT "Build with MT" OFF)
 tvm_option(USE_MICRO "Build with Micro" OFF)
 tvm_option(INSTALL_DEV "Install compiler infrastructure" OFF)
 tvm_option(HIDE_PRIVATE_SYMBOLS "Compile with -fvisibility=hidden." OFF)
+tvm_option(CUDA_COMPILE_ONLY "Build libtvm.so without libcuda.so" ON)
 
 # 3rdparty libraries
 tvm_option(DLPACK_PATH "Path to DLPACK" "3rdparty/dlpack/include")
@@ -390,6 +391,9 @@ else(INSTALL_DEV)
 endif(INSTALL_DEV)
 
 # More target definitions
+if(CUDA_COMPILE_ONLY)
+  target_compile_definitions(tvm PRIVATE -DCUDA_COMPILE_ONLY)
+endif()
 if(MSVC)
   target_compile_definitions(tvm PRIVATE -DTVM_EXPORTS)
   target_compile_definitions(tvm_runtime PRIVATE -DTVM_EXPORTS)

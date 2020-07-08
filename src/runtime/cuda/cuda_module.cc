@@ -23,7 +23,9 @@
 #include "cuda_module.h"
 
 #include <tvm/runtime/registry.h>
+#ifndef CUDA_COMPILE_ONLY
 #include <cuda.h>
+#endif
 #include <cuda_runtime.h>
 #include <vector>
 #include <array>
@@ -50,16 +52,20 @@ class CUDAModuleNode : public runtime::ModuleNode {
                           std::unordered_map<std::string, FunctionInfo> fmap,
                           std::string cuda_source)
       : data_(data), fmt_(fmt), fmap_(fmap), cuda_source_(cuda_source) {
+  #ifndef CUDA_COMPILE_ONLY
     std::fill(module_.begin(), module_.end(), nullptr);
+  #endif
   }
   // destructor
   ~CUDAModuleNode() {
+  #ifndef CUDA_COMPILE_ONLY
     for (size_t i = 0; i < module_.size(); ++i) {
       if (module_[i] != nullptr) {
         CUDA_CALL(cudaSetDevice(static_cast<int>(i)));
         CUDA_DRIVER_CALL(cuModuleUnload(module_[i]));
       }
     }
+  #endif
   }
 
   const char* type_key() const final {
@@ -103,6 +109,7 @@ class CUDAModuleNode : public runtime::ModuleNode {
   }
 
   // get a CUfunction from primary context in device_id
+#ifndef CUDA_COMPILE_ONLY
   CUfunction GetFunc(int device_id, const std::string& func_name) {
     std::lock_guard<std::mutex> lock(mutex_);
     // must recheck under the lock scope
@@ -144,6 +151,7 @@ class CUDAModuleNode : public runtime::ModuleNode {
     }
     return global;
   }
+#endif
 
  private:
   // the binary data
@@ -154,12 +162,15 @@ class CUDAModuleNode : public runtime::ModuleNode {
   std::unordered_map<std::string, FunctionInfo> fmap_;
   // The cuda source.
   std::string cuda_source_;
+#ifndef CUDA_COMPILE_ONLY
   // the internal modules per GPU, to be lazily initialized.
   std::array<CUmodule, kMaxNumGPUs> module_;
+#endif
   // internal mutex when updating the module
   std::mutex mutex_;
 };
 
+#ifndef CUDA_COMPILE_ONLY
 // a wrapped function class to get packed func.
 class CUDAWrappedFunc {
  public:
@@ -255,10 +266,14 @@ class CUDAPrepGlobalBarrier {
   // mark as mutable, to enable lazy initialization
   mutable std::array<CUdeviceptr, kMaxNumGPUs> pcache_;
 };
+#endif
 
 PackedFunc CUDAModuleNode::GetFunction(
       const std::string& name,
       const ObjectPtr<Object>& sptr_to_self) {
+#ifdef CUDA_COMPILE_ONLY
+    return PackedFunc();
+#else
   CHECK_EQ(sptr_to_self.get(), this);
   CHECK_NE(name, symbol::tvm_module_main)
       << "Device function do not have main";
@@ -271,6 +286,7 @@ PackedFunc CUDAModuleNode::GetFunction(
   CUDAWrappedFunc f;
   f.Init(this, sptr_to_self, name, info.arg_types.size(), info.thread_axis_tags);
   return PackFuncVoidAddr(f, info.arg_types);
+#endif
 }
 
 Module CUDAModuleCreate(
