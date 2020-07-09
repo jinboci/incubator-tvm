@@ -22,6 +22,7 @@
  * \file node/repr_printer.cc
  */
 #include <tvm/node/repr_printer.h>
+#include <tvm/runtime/registry.h>
 
 namespace tvm {
 
@@ -50,7 +51,13 @@ ReprPrinter::FType& ReprPrinter::vtable() {
   return inst;
 }
 
-void Dump(const ObjectRef& n) {
-  std::cerr << n << "\n";
-}
+void Dump(const runtime::ObjectRef& n) { std::cerr << n << "\n"; }
+
+void Dump(const runtime::Object* n) { Dump(runtime::GetRef<runtime::ObjectRef>(n)); }
+
+TVM_REGISTER_GLOBAL("node.AsRepr").set_body_typed([](runtime::ObjectRef obj) {
+  std::ostringstream os;
+  os << obj;
+  return os.str();
+});
 }  // namespace tvm

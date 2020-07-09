@@ -79,6 +79,10 @@ The model should be exported with a number of transformations to prepare the mod
                 [
                     "remove_nodes(op=Identity, op=CheckNumerics, op=StopGradient)",
                     "sort_by_execution_order", # sort by execution order after each transform to ensure correct node ordering
+                    "remove_attribute(attribute_name=_XlaSeparateCompiledGradients)",
+                    "remove_attribute(attribute_name=_XlaCompile)",
+                    "remove_attribute(attribute_name=_XlaScope)",
+                    "sort_by_execution_order",
                     "remove_device",
                     "sort_by_execution_order",
                     "fold_batch_norms",
@@ -135,10 +139,12 @@ Supported Ops
 - ConcatV2
 - Conv2D
 - Cos
+- Tan
 - CropAndResize
 - DecodeJpeg
 - DepthwiseConv2dNative
 - DepthToSpace
+- Dilation2D
 - Equal
 - Elu
 - Enter
@@ -158,6 +164,9 @@ Supported Ops
 - Greater
 - GreaterEqual
 - Identity
+- IsFinite
+- IsInf
+- IsNan
 - LeakyRelu
 - LeftShift
 - Less
@@ -240,5 +249,6 @@ Supported Ops
 - Transpose
 - TruncateMod
 - Unpack
+- UnravelIndex
 - Where
 - ZerosLike
