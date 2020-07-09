@@ -16,9 +16,12 @@
 # under the License.
 # pylint: disable=invalid-name
 """generic declaration and schedules."""
+from __future__ import absolute_import as _abs
+
 import tvm
 from .. import cpp
 
+@tvm.target.generic_func
 def schedule_extern(outs):
     """Schedule for an extern op followed by injective operations.
 
@@ -33,5 +36,5 @@ def schedule_extern(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    target = tvm.target.Target.current()
+    target = tvm.target.current_target()
     return cpp.generic.schedule_extern(target, outs)

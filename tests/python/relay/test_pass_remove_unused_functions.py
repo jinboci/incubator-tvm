@@ -16,14 +16,13 @@
 # under the License.
 import pytest
 import tvm
-from tvm import te
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.prelude import Prelude
 
 
 def test_remove_all_prelude_functions():
-    mod = tvm.IRModule()
+    mod = relay.Module()
     p = Prelude(mod)
     x = relay.var("x", shape=(1, 16))
     mod["main"] = relay.Function([x], x)
@@ -33,7 +32,7 @@ def test_remove_all_prelude_functions():
 
 
 def test_remove_all_prelude_functions_but_referenced_functions():
-    mod = tvm.IRModule()
+    mod = relay.Module()
     p = Prelude(mod)
     x = relay.var("x", shape=(1, 16))
     id_func = relay.Function([x], x)
@@ -47,7 +46,7 @@ def test_remove_all_prelude_functions_but_referenced_functions():
 
 
 def test_keep_only_referenced_prelude_functions():
-    mod = tvm.IRModule()
+    mod = relay.Module()
     p = Prelude(mod)
     l = p.nil()
     for i in [4, 3, 2, 1, 0]:
@@ -60,7 +59,7 @@ def test_keep_only_referenced_prelude_functions():
 
 
 def test_multiple_entry_functions():
-    mod = tvm.IRModule()
+    mod = relay.Module()
     p = Prelude(mod)
     l = p.nil()
     for i in [4, 3, 2, 1, 0]:
@@ -79,7 +78,7 @@ def test_multiple_entry_functions():
 
 
 def test_globalvar_as_call_arg():
-    mod = tvm.IRModule()
+    mod = relay.Module()
     p = Prelude(mod)
     tensor_array = p.get_var('tensor_array', 'int32')
     tensor1 = p.get_var('tensor1', 'int32')
@@ -97,7 +96,7 @@ def test_globalvar_as_call_arg():
 
 def test_call_globalvar_without_args():
     def get_mod():
-        mod = tvm.IRModule({})
+        mod = relay.Module({})
         fn1 = relay.Function([], relay.const(1))
         fn2 = relay.Function([], relay.const(2))
         g1 = relay.GlobalVar('g1')
@@ -110,7 +109,7 @@ def test_call_globalvar_without_args():
     mod = get_mod()
     ref_mod = get_mod()
     mod = relay.transform.RemoveUnusedFunctions()(mod)
-    assert tvm.ir.structural_equal(mod, ref_mod, map_free_vars=True)
+    assert relay.alpha_equal(mod, ref_mod)
 
 
 if __name__ == '__main__':

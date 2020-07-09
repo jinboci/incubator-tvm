@@ -16,7 +16,6 @@
 # under the License.
 import numpy as np
 import tvm
-from tvm import te
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
@@ -24,31 +23,12 @@ from tvm.relay.testing import run_infer_type, create_workload
 
 
 def run_opt_pass(expr, opt_pass):
-    assert isinstance(opt_pass, tvm.transform.Pass)
+    assert isinstance(opt_pass, transform.Pass)
 
-    mod = tvm.IRModule.from_expr(expr)
+    mod = relay.Module.from_expr(expr)
     mod = opt_pass(mod)
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body
-
-
-def test_concatenate_const():
-    def before():
-        data = tvm.nd.array(np.array([1.0, 2.0, 3.0]))
-        const = relay.const(data)
-        concat = relay.op.concatenate([const, const], axis=0)
-        func = relay.Function([], concat)
-        return func
-
-    def expected():
-        data = tvm.nd.array(np.array([1.0, 2.0, 3.0, 1.0, 2.0, 3.0]))
-        const = relay.const(data)
-        func = relay.Function([], const)
-        return func
-
-    zz = run_opt_pass(before(), transform.FoldConstant())
-    zexpected = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(zz, zexpected)
 
 
 def test_fold_const():
@@ -70,11 +50,15 @@ def test_fold_const():
         z = relay.add(y, relay.const(c_data))
         return relay.Function([x], z)
 
+    def fail(x):
+        raise RuntimeError()
+
     # the fold constant should work on any context.
-    with tvm.target.create("cuda"):
-        zz = run_opt_pass(before(), transform.FoldConstant())
+    with tvm.build_config(add_lower_pass=[(0, fail)]):
+        with tvm.target.create("cuda"):
+            zz = run_opt_pass(before(), transform.FoldConstant())
     zexpected = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(zz, zexpected)
+    assert relay.analysis.alpha_equal(zz, zexpected)
 
 
 def test_fold_let():
@@ -99,7 +83,7 @@ def test_fold_let():
 
     zz = run_opt_pass(before(), transform.FoldConstant())
     zexpected = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(zz, zexpected)
+    assert relay.analysis.graph_equal(zz, zexpected)
 
 
 def test_fold_tuple():
@@ -121,7 +105,7 @@ def test_fold_tuple():
 
     zz = run_opt_pass(before(), transform.FoldConstant())
     zexpected = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(zz, zexpected)
+    assert relay.analysis.graph_equal(zz, zexpected)
 
 
 def test_fold_concat():
@@ -140,7 +124,7 @@ def test_fold_concat():
 
     zz = run_opt_pass(before(), transform.FoldConstant())
     zexpected = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(zz, zexpected)
+    assert relay.analysis.graph_equal(zz, zexpected)
 
 
 def test_fold_shape_of():
@@ -161,7 +145,7 @@ def test_fold_shape_of():
     for dtype in ["int32", "float32"]:
         zz = run_opt_pass(before(dtype), transform.FoldConstant())
         zexpected = run_opt_pass(expected(dtype), transform.InferType())
-        assert tvm.ir.structural_equal(zz, zexpected)
+        assert relay.analysis.graph_equal(zz, zexpected)
 
 
 def test_fold_full():
@@ -176,7 +160,7 @@ def test_fold_full():
 
     zz = run_opt_pass(before(), transform.FoldConstant())
     zexpected = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(zz, zexpected)
+    assert relay.analysis.graph_equal(zz, zexpected)
 
 
 def test_fold_batch_norm():
@@ -189,7 +173,7 @@ def test_fold_batch_norm():
         add = relay.add(conv, bias)
         return relay.Function(relay.analysis.free_vars(add), add)
 
-    remove_bn_pass = tvm.transform.Sequential([
+    remove_bn_pass = transform.Sequential([
         relay.transform.InferType(),
         relay.transform.SimplifyInference(),
         relay.transform.FoldConstant(),
@@ -213,11 +197,11 @@ def test_fold_batch_norm():
     mod, params = create_workload(bn_output[0], initializer)
     mod["main"] = bind_params_by_name(mod["main"], params)
 
-    with tvm.transform.PassContext(opt_level=3):
+    with relay.build_config(opt_level=3):
         mod = remove_bn_pass(mod)
 
     expect = run_infer_type(expected())
-    assert tvm.ir.structural_equal(mod["main"], expect)
+    assert relay.analysis.graph_equal(mod["main"], expect)
 
 
 if __name__ == "__main__":

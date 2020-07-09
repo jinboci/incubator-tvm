@@ -19,26 +19,28 @@
 
 Docker Images
 =============
-We provide docker utility scripts to help developers to setup development environment.
-They are also helpful run through TVM demo and tutorials.
+We provide several prebuilt docker images to quickly try out TVM.
+These images are also helpful run through TVM demo and tutorials.
+You can get the docker images via the following steps.
 We need `docker <https://docs.docker.com/engine/installation/>`_ and
 `nvidia-docker <https://github.com/NVIDIA/nvidia-docker/>`_ if we want to use cuda.
 
-Get a tvm source distribution or clone the github repo to get the auxiliary scripts
+First, clone TVM repo to get the auxiliary scripts
 
 .. code:: bash
 
     git clone --recursive https://github.com/apache/incubator-tvm tvm
 
 
-We can then use the following command to launch a docker image.
+We can then use the following command to launch a `tvmai/demo-cpu` image.
 
 .. code:: bash
 
-    /path/to/tvm/docker/bash.sh <image-name>
+    /path/to/tvm/docker/bash.sh tvmai/demo-cpu
 
-Here the image-name can be a local docker image name, e.g. `tvm.ci_cpu` after you have done
-the local build. Or a pre-built third party image (`tvmai/demo-cpu` or `tvmai/ci-gpu`).
+You can also change `demo-cpu` to `demo-gpu` to get a CUDA enabled image.
+You can find all the prebuilt images in `<https://hub.docker.com/r/tvmai/>`_
+
 
 This auxiliary script does the following things:
 
@@ -65,10 +67,7 @@ Note that on macOS, because we use bridge network, jupyter notebook will be repo
 at an URL like ``http://{container_hostname}:8888/?token=...``. You should replace the ``container_hostname``
 with ``localhost`` when pasting it into browser.
 
-You can find some un-official prebuilt images in `<https://hub.docker.com/r/tvmai/>`_.
-Note that these are convenience images and are not part of the ASF release.
-
 Docker Source
 -------------
-Check out `The docker source <https://github.com/apache/incubator-tvm/tree/master/docker>`_ if you are interested in
+Check out `<https://github.com/apache/incubator-tvm/tree/master/docker>`_ if you are interested in
 building your own docker images.

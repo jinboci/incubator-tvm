@@ -29,11 +29,6 @@ use crate::allocator::Allocation;
 
 const WS_ALIGN: usize = 64; // taken from `kTempAllocaAlignment` in `device_api.h`
 
-pub fn remove_item<T: PartialEq>(vec: &mut Vec<T>, item: &T) -> Option<T> {
-    let pos = vec.iter().position(|x| *x == *item)?;
-    Some(vec.remove(pos))
-}
-
 struct WorkspacePool {
     workspaces: Vec<Allocation>,
     free: Vec<usize>,
@@ -56,7 +51,7 @@ impl WorkspacePool {
     }
 
     fn alloc(&mut self, size: usize) -> Result<*mut u8, Error> {
-        if self.free.is_empty() {
+        if self.free.len() == 0 {
             return self.alloc_new(size);
         }
         let idx = self
@@ -64,17 +59,20 @@ impl WorkspacePool {
             .iter()
             .fold(None, |cur_ws_idx: Option<usize>, &idx| {
                 let ws_size = self.workspaces[idx].size();
-                if ws_size < size {
+                if !ws_size >= size {
                     return cur_ws_idx;
                 }
                 cur_ws_idx.or(Some(idx)).and_then(|cur_idx| {
                     let cur_size = self.workspaces[cur_idx].size();
-                    Some(if ws_size <= cur_size { idx } else { cur_idx })
+                    Some(match ws_size <= cur_size {
+                        true => idx,
+                        false => cur_idx,
+                    })
                 })
             });
         match idx {
             Some(idx) => {
-                remove_item(&mut self.free, &idx).unwrap();
+                self.free.remove_item(&idx).unwrap();
                 self.in_use.push(idx);
                 Ok(self.workspaces[idx].as_mut_ptr())
             }
@@ -92,9 +90,9 @@ impl WorkspacePool {
                 break;
             }
         }
-        let ws_idx = ws_idx.ok_or_else(|| format_err!("Invalid pointer"))?;
-        self.free.push(ws_idx);
-        Ok(())
+        Ok(self
+            .free
+            .push(ws_idx.ok_or(format_err!("Tried to free nonexistent workspace."))?))
     }
 }
 
@@ -134,5 +132,6 @@ pub extern "C" fn TVMBackendFreeWorkspace(
             Ok(()) => 0,
             Err(_) => -1,
         }) as c_int
-    })
+    });
+    return 0;
 }

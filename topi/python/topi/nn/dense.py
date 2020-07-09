@@ -15,21 +15,22 @@
 # specific language governing permissions and limitations
 # under the License.
 """TVM operator fully connected compute."""
-from tvm import te
+from __future__ import absolute_import
+import tvm
 from .. import tag
 
-def dense(data, weight, bias=None, out_dtype=None):
+def dense_default(data, weight, bias=None, out_dtype=None):
     """The default implementation of dense in topi.
 
     Parameters
     ----------
-    data : tvm.te.Tensor
+    data : tvm.Tensor
         2-D with shape [batch, in_dim]
 
-    weight : tvm.te.Tensor
+    weight : tvm.Tensor
         2-D with shape [out_dim, in_dim]
 
-    bias : tvm.te.Tensor, optional
+    bias : tvm.Tensor, optional
         1-D with shape [out_dim]
 
     out_dtype : str
@@ -37,7 +38,7 @@ def dense(data, weight, bias=None, out_dtype=None):
 
     Returns
     -------
-    output : tvm.te.Tensor
+    output : tvm.Tensor
         2-D with shape [batch, out_dim]
     """
     assert len(data.shape) == 2 and len(weight.shape) == 2, \
@@ -48,13 +49,39 @@ def dense(data, weight, bias=None, out_dtype=None):
         out_dtype = data.dtype
     batch, in_dim = data.shape
     out_dim, _ = weight.shape
-    k = te.reduce_axis((0, in_dim), name='k')
-    matmul = te.compute((batch, out_dim), \
-                        lambda i, j: te.sum(data[i, k].astype(out_dtype) * \
-                                            weight[j, k].astype(out_dtype), axis=k), \
-                        name='T_dense', tag='dense')
+    k = tvm.reduce_axis((0, in_dim), name='k')
+    matmul = tvm.compute((batch, out_dim), \
+                         lambda i, j: tvm.sum(data[i, k].astype(out_dtype) * \
+                                              weight[j, k].astype(out_dtype), axis=k), \
+                         name='T_dense', tag='dense')
     if bias is not None:
-        matmul = te.compute((batch, out_dim), \
-                            lambda i, j: matmul[i, j] + bias[j].astype(out_dtype), \
-                            tag=tag.BROADCAST)
+        matmul = tvm.compute((batch, out_dim), \
+                             lambda i, j: matmul[i, j] + bias[j].astype(out_dtype), \
+                             tag=tag.BROADCAST)
     return matmul
+
+
+@tvm.target.override_native_generic_func("dense")
+def dense(data, weight, bias=None, out_dtype=None):
+    """Applies a linear transformation: :math:`Y = XW^T + b`.
+
+    Parameters
+    ----------
+    data : tvm.Tensor
+        2-D with shape [batch, in_dim]
+
+    weight : tvm.Tensor
+        2-D with shape [out_dim, in_dim]
+
+    bias : tvm.Tensor, optional
+        1-D with shape [out_dim]
+
+    out_dtype : str
+        The output type. This is used for mixed precision.
+
+    Returns
+    -------
+    output : tvm.Tensor
+        2-D with shape [batch, out_dim]
+    """
+    return dense_default(data, weight, bias, out_dtype)

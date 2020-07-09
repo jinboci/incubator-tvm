@@ -18,7 +18,6 @@
 """TVM operator space_to_depth compute."""
 from __future__ import absolute_import
 import tvm
-from tvm import te
 from .. import tag
 
 
@@ -27,7 +26,7 @@ def space_to_depth(data, block_size, layout='NCHW'):
 
     Parameters
     ----------
-    data : tvm.te.Tensor
+    data : tvm.Tensor
         4-D tensor in either NCHW or NHWC layout.
 
     block_size : int
@@ -38,17 +37,17 @@ def space_to_depth(data, block_size, layout='NCHW'):
 
     Returns
     -------
-    output : tvm.te.Tensor
+    output : tvm.Tensor
         Output of shape [N, C * block_size**2, H / block_size, W / block_size]
     """
 
     if layout == 'NCHW':
         in_n, in_c, in_h, in_w = data.shape
         output_shape = [in_n, in_c * block_size * block_size,
-                        tvm.tir.truncdiv(in_h, block_size), tvm.tir.truncdiv(in_w, block_size)]
+                        tvm.truncdiv(in_h, block_size), tvm.truncdiv(in_w, block_size)]
     elif layout == 'NHWC':
         in_n, in_h, in_w, in_c = data.shape
-        output_shape = [in_n, tvm.tir.truncdiv(in_h, block_size), tvm.tir.truncdiv(
+        output_shape = [in_n, tvm.truncdiv(in_h, block_size), tvm.truncdiv(
             in_w, block_size), in_c * block_size * block_size]
     else:
         raise ValueError("Only NCHW and NHWC layouts are currently supported.")
@@ -61,10 +60,10 @@ def space_to_depth(data, block_size, layout='NCHW'):
         return n, c, y, x
 
     def _get_pixel(n, c, y, x):
-        block_offset = tvm.tir.truncdiv(c, in_c)
-        channel_idx = tvm.tir.truncmod(c, in_c)
-        x_idx = tvm.tir.truncmod(block_offset, block_size)
-        y_idx = tvm.tir.truncdiv(block_offset, block_size)
+        block_offset = tvm.truncdiv(c, in_c)
+        channel_idx = tvm.truncmod(c, in_c)
+        x_idx = tvm.truncmod(block_offset, block_size)
+        y_idx = tvm.truncdiv(block_offset, block_size)
 
         if layout == 'NCHW':
             output = data(n, channel_idx, y_idx +
@@ -78,4 +77,4 @@ def space_to_depth(data, block_size, layout='NCHW'):
         n, c, y, x = _get_indices(*indices)
         return _get_pixel(n, c, y, x)
 
-    return te.compute(output_shape, _compute, name='space_to_depth', tag=tag.INJECTIVE)
+    return tvm.compute(output_shape, _compute, name='space_to_depth', tag=tag.INJECTIVE)

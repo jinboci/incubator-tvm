@@ -20,6 +20,8 @@
 //! This crate contains the refactored basic components required
 //! for `runtime` and `frontend` TVM crates.
 
+#![feature(box_syntax, trait_alias)]
+
 #[macro_use]
 extern crate failure;
 
@@ -31,13 +33,8 @@ pub mod ffi {
 
     include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/c_runtime_api.rs"));
 
-    pub type BackendPackedCFunc = extern "C" fn(
-        args: *const TVMValue,
-        type_codes: *const c_int,
-        num_args: c_int,
-        out_ret_value: *mut TVMValue,
-        out_ret_tcode: *mut u32,
-    ) -> c_int;
+    pub type BackendPackedCFunc =
+        extern "C" fn(args: *const TVMValue, type_codes: *const c_int, num_args: c_int) -> c_int;
 }
 
 pub mod array;
@@ -47,5 +44,5 @@ pub mod packed_func;
 pub mod value;
 
 pub use errors::*;
-pub use ffi::{DLDataType as TVMType, TVMByteArray, TVMContext};
+pub use ffi::{TVMByteArray, TVMContext, TVMType};
 pub use packed_func::{TVMArgValue, TVMRetValue};

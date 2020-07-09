@@ -24,10 +24,9 @@
 #ifndef TVM_TARGET_INTRIN_RULE_H_
 #define TVM_TARGET_INTRIN_RULE_H_
 
-#include <tvm/runtime/registry.h>
-#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
-
+#include <tvm/tir/expr.h>
+#include <tvm/runtime/registry.h>
 #include <string>
 
 namespace tvm {
@@ -50,29 +49,21 @@ struct FloatSuffix {
 
 // Return the intrinsic name
 struct Direct {
-  std::string operator()(DataType t, std::string name) const { return name; }
+  std::string operator()(DataType t, std::string name) const {
+    return name;
+  }
 };
 
 // Call pure extern function.
-template <typename T>
-inline void DispatchPureExtern(const TVMArgs& args, TVMRetValue* rv) {
+template<typename T>
+inline void DispatchExtern(const TVMArgs& args, TVMRetValue* rv) {
   PrimExpr e = args[0];
   const CallNode* call = e.as<CallNode>();
   CHECK(call != nullptr);
-  // Use string based dispatch to extern for backward compact
-  // TODO(tvm-team) replace once the new dispatching system is inplace.
-  const OpNode* op = call->op.as<OpNode>();
-  CHECK(op != nullptr);
-  std::string name = op->name;
-  CHECK_EQ(name.substr(0, 4), "tir.");
-  name = T()(call->dtype, name.substr(4));
-
+  std::string name = T()(call->dtype, call->name);
   if (name.length() != 0) {
-    Array<PrimExpr> new_args = {StringImm(name)};
-    for (auto arg : call->args) {
-      new_args.push_back(arg);
-    }
-    *rv = Call(call->dtype, tir::builtin::call_pure_extern(), new_args);
+    *rv = CallNode::make(
+        call->dtype, name, call->args, CallNode::PureExtern);
   } else {
     *rv = e;
   }

@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
 import numpy as np
 from tvm.contrib.dlpack import to_pytorch_func
 
@@ -35,17 +34,17 @@ def test():
         np.testing.assert_equal(y.asnumpy(), tvm_x.asnumpy())
         np.testing.assert_equal(torch.utils.dlpack.from_dlpack(y.to_dlpack()).numpy(), tvm_x.asnumpy())
 
-        n = tvm.runtime.convert(137)
+        n = tvm.convert(137)
         xx = torch.rand(137,137)
         yy = torch.rand(137,137)
         zz2 = torch.empty(137,137)
         zz = xx.mm(yy)
-        XX = te.placeholder((n,n), name='X')
-        YY = te.placeholder((n,n), name='Y')
+        XX = tvm.placeholder((n,n), name='X')
+        YY = tvm.placeholder((n,n), name='Y')
 
-        k = te.reduce_axis((0, n), name='k')
-        ZZ = te.compute((n,n), lambda i,j : te.sum(XX[i,k]*YY[k,j], axis=k))
-        s = te.create_schedule(ZZ.op)
+        k = tvm.reduce_axis((0, n), name='k')
+        ZZ = tvm.compute((n,n), lambda i,j : tvm.sum(XX[i,k]*YY[k,j], axis=k))
+        s = tvm.create_schedule(ZZ.op)
         f = tvm.build(s, [XX, YY, ZZ], target_host='llvm', name='f')
 
         f_pytorch = to_pytorch_func(f)

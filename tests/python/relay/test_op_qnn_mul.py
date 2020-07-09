@@ -16,7 +16,6 @@
 # under the License.
 
 import tvm
-from tvm import te
 import numpy as np
 from tvm import relay
 from tvm.contrib import graph_runtime
@@ -53,7 +52,7 @@ def test_tflite_same_io_qnn_params():
                          output_zero_point=relay.const(output_zero_point, 'int32'))
 
     func = relay.Function([x, y], z)
-    mod = tvm.IRModule.from_expr(func)
+    mod = relay.Module.from_expr(func)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 
@@ -104,7 +103,7 @@ def test_tflite_different_io_qnn_params():
                          output_zero_point=relay.const(output_zero_point, 'int32'))
 
     func = relay.Function([x, y], z)
-    mod = tvm.IRModule.from_expr(func)
+    mod = relay.Module.from_expr(func)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 
@@ -150,7 +149,7 @@ def test_saturation():
                          output_zero_point=relay.const(output_zero_point, 'int32'))
 
     func = relay.Function([x, y], z)
-    mod = tvm.IRModule.from_expr(func)
+    mod = relay.Module.from_expr(func)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 
@@ -181,7 +180,7 @@ def test_saturation():
                          output_zero_point=relay.const(output_zero_point, 'int32'))
 
     func = relay.Function([x, y], z)
-    mod = tvm.IRModule.from_expr(func)
+    mod = relay.Module.from_expr(func)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 
@@ -213,7 +212,7 @@ def test_saturation():
                          output_zero_point=relay.const(output_zero_point, 'int32'))
 
     func = relay.Function([x, y], z)
-    mod = tvm.IRModule.from_expr(func)
+    mod = relay.Module.from_expr(func)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 

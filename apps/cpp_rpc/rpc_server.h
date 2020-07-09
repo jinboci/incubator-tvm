@@ -25,20 +25,10 @@
 #define TVM_APPS_CPP_RPC_SERVER_H_
 
 #include <string>
-
 #include "tvm/runtime/c_runtime_api.h"
 
 namespace tvm {
 namespace runtime {
-
-#if defined(WIN32)
-/*!
- * \brief ServerLoopFromChild The Server loop process.
- * \param sock The socket information
- * \param addr The socket address information
- */
-void ServerLoopFromChild(SOCKET socket);
-#endif
 
 /*!
  * \brief RPCServerCreate Creates the RPC Server.
@@ -50,9 +40,13 @@ void ServerLoopFromChild(SOCKET socket);
  * \param custom_addr Custom IP Address to Report to RPC Tracker. Default=""
  * \param silent Whether run in silent mode. Default=True
  */
-void RPCServerCreate(std::string host = "", int port = 9090, int port_end = 9099,
-                     std::string tracker_addr = "", std::string key = "",
-                     std::string custom_addr = "", bool silent = true);
+TVM_DLL void RPCServerCreate(std::string host = "",
+                             int port = 9090,
+                             int port_end = 9099,
+                             std::string tracker_addr = "",
+                             std::string key = "",
+                             std::string custom_addr = "",
+                             bool silent = true);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_APPS_CPP_RPC_SERVER_H_

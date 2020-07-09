@@ -17,7 +17,6 @@
 import os
 import numpy as np
 import tvm
-from tvm import te
 import json
 import base64
 from tvm._ffi.base import py_str

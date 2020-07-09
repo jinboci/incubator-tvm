@@ -24,9 +24,7 @@
 //! # Example
 //!
 //! ```
-//! # use tvm_frontend::{TVMDeviceType, TVMContext};
-//! let cpu = TVMDeviceType::from("cpu");
-//! let ctx = TVMContext::new(cpu , 0);
+//! let ctx = TVMContext::new(1, 0);
 //! let cpu0 = TVMContext::cpu(0);
 //! assert_eq!(ctx, cpu0);
 //! ```
@@ -34,7 +32,6 @@
 //! Or from a supported device name.
 //!
 //! ```
-//! use tvm_frontend::TVMContext;
 //! let cpu0 = TVMContext::from("cpu");
 //! println!("{}", cpu0);
 //! ```
@@ -58,7 +55,6 @@ use crate::{function, TVMArgValue};
 /// ## Example
 ///
 /// ```
-/// use tvm_frontend::TVMDeviceType;
 /// let cpu = TVMDeviceType::from("cpu");
 /// println!("device is: {}", cpu);
 ///```
@@ -156,8 +152,7 @@ impl<'a> From<&TVMDeviceType> for TVMArgValue<'a> {
 /// ## Examples
 ///
 /// ```
-/// use tvm_frontend::TVMContext;
-/// let ctx = TVMContext::from("cpu");
+/// let ctx = TVMContext::from("gpu");
 /// assert!(ctx.exist());
 ///
 /// ```
@@ -165,12 +160,9 @@ impl<'a> From<&TVMDeviceType> for TVMArgValue<'a> {
 /// It is possible to query the underlying context as follows
 ///
 /// ```
-/// # use tvm_frontend::TVMContext;
-/// # let ctx = TVMContext::from("cpu");
-/// println!("maximun threads per block: {}", ctx.exist());
+/// println!("maximun threads per block: {}", ctx.max_threads_per_block());
+/// println!("compute version: {}", ctx.compute_version());
 /// ```
-//  TODO: add example back for GPU
-// println!("compute version: {}", ctx.compute_version());
 #[derive(Debug, Default, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct TVMContext {
     /// Supported device types
@@ -211,6 +203,7 @@ impl_ctxs!((cpu, 1);
             (metal, 8);
             (vpi, 9);
             (rocm, 10);
+            (opengl, 11);
             (ext_dev, 12));
 
 impl<'a> From<&'a str> for TVMContext {
@@ -222,12 +215,11 @@ impl<'a> From<&'a str> for TVMContext {
 impl TVMContext {
     /// Checks whether the context exists or not.
     pub fn exist(&self) -> bool {
-        let func = function::Function::get("runtime.GetDeviceAttr")
-            .expect("TVM FFI functions must always be registered.");
-        let dt = self.device_type.0 as isize;
+        let func = function::Function::get("_GetDeviceAttr").expect("API function always exists");
+        let dt = self.device_type.0 as usize;
         // `unwrap` is ok here because if there is any error,
         // if would occure inside `call_packed!`
-        let ret: i64 = call_packed!(func, dt, self.device_id, 0)
+        let ret: u64 = call_packed!(func, dt, self.device_id, 0)
             .unwrap()
             .try_into()
             .unwrap();
@@ -249,17 +241,15 @@ macro_rules! impl_device_attrs {
     ($(($attr_name:ident, $attr_kind:expr));+) => {
         $(
             impl TVMContext {
-                pub fn $attr_name(&self) -> isize {
-                    let func = function::Function::get("runtime.GetDeviceAttr")
-                        .expect("TVM FFI functions must always be registered.");
-                    let dt = self.device_type.0 as isize;
-                    // TODO(@jroesch): these functions CAN and WILL return NULL
-                    // we should make these optional or somesuch to handle this.
+                pub fn $attr_name(&self) -> usize {
+                    let func = function::Function::get("_GetDeviceAttr")
+                        .expect("API function always exists");
+                    let dt = self.device_type.0 as usize;
                     // `unwrap` is ok here because if there is any error,
                     // if would occur in function call.
                     function::Builder::from(func)
                         .arg(dt)
-                        .arg(self.device_id as isize)
+                        .arg(self.device_id as usize)
                         .arg($attr_kind)
                         .invoke()
                         .unwrap()

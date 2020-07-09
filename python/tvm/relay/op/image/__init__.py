@@ -16,5 +16,6 @@
 # under the License.
 # pylint: disable=wildcard-import
 """Image network related operators."""
+from __future__ import absolute_import as _abs
 from .image import *
-from . import _image
+from ._image import *

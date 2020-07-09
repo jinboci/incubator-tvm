@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test graph equality of caffe2 models."""
-import tvm
 from tvm import relay
 from tvm.relay import transform
 from model_zoo import c2_squeezenet, relay_squeezenet
@@ -24,7 +23,7 @@ from model_zoo import c2_squeezenet, relay_squeezenet
 def compare_graph(lhs_mod, rhs_mod):
     lhs_mod = transform.InferType()(lhs_mod)
     rhs_mod = transform.InferType()(rhs_mod)
-    assert tvm.ir.structural_equal(lhs_mod["main"], rhs_mod["main"])
+    assert relay.analysis.alpha_equal(lhs_mod["main"], rhs_mod["main"])
 
 
 def test_squeeze_net():

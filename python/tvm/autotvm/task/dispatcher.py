@@ -33,9 +33,11 @@ from __future__ import absolute_import as _abs
 import logging
 
 import numpy as np
+from decorator import decorate
+
+from tvm import target as _target
 
 from .space import FallbackConfigEntity
-from .. import env as _env
 
 logger = logging.getLogger('autotvm')
 
@@ -48,8 +50,6 @@ class DispatchContext(object):
     specific dispatch mechanism for templates.
     """
     current = None
-    # a set to prevent print duplicated message
-    warning_messages = set()
 
     def __init__(self):
         self._old_ctx = DispatchContext.current
@@ -106,7 +106,7 @@ class DispatchContext(object):
             def _alter_conv2d_layout(attrs, inputs, tinfo):
                 workload = get_conv2d_workload(...)
                 dispatch_ctx = autotvm.task.DispatchContext.current
-                target = tvm.target.Target.current()
+                target = tvm.target.current_target()
                 config = dispatch_ctx.query(target, workload)
 
                 # Get conv2d_NCHWc workload from config
@@ -152,6 +152,79 @@ class DispatchContext(object):
         DispatchContext.current = self._old_ctx
 
 
+def dispatcher(fworkload):
+    """Wrap a workload dispatcher function.
+
+    Parameters
+    ----------
+    fworkload : function
+        The workload extraction function from arguments.
+
+    Returns
+    -------
+    fdispatcher : function
+        A wrapped dispatcher function, which will
+        dispatch based on DispatchContext and
+        the current workload.
+    """
+    dispatch_dict = {}
+    func_name = fworkload.__name__
+
+    def register(key, func=None, override=False):
+        """Register template function.
+
+        Parameters
+        ----------
+        key : str or List of str
+            The template key to identify the template
+            under this dispatcher.
+        func : function
+            The function to be registered.
+            The first argument of the function is always
+            cfg returned by DispatchContext,
+            the rest arguments are the same as the fworkload.
+        override : bool
+            Whether override existing registration.
+
+        Returns
+        -------
+        The register function if necessary.
+        """
+        if isinstance(key, str):
+            key = [key]
+
+        def _do_reg(myf):
+            for x in key:
+                if x in dispatch_dict and not override:
+                    raise ValueError(
+                        "Key %s is already registered for %s" % (x, func_name))
+                dispatch_dict[x] = myf
+            return myf
+
+        if func:
+            return _do_reg(func)
+        return _do_reg
+
+    def dispatch_func(func, *args, **kwargs):
+        """The wrapped dispatch function"""
+        tgt = _target.current_target()
+        workload = func(*args, **kwargs)
+        cfg = DispatchContext.current.query(tgt, workload)
+        if cfg.is_fallback and not cfg.template_key:
+            # first try 'direct' template
+            if 'direct' in dispatch_dict:
+                return dispatch_dict['direct'](cfg, *args, **kwargs)
+            # otherwise pick a random template
+            for v in dispatch_dict.values():
+                return v(cfg, *args, **kwargs)
+        else:
+            return dispatch_dict[cfg.template_key](cfg, *args, **kwargs)
+
+    fdecorate = decorate(fworkload, dispatch_func)
+    fdecorate.register = register
+    return fdecorate
+
+
 class ApplyConfig(DispatchContext):
     """Apply a deterministic config entity for all queries.
 
@@ -185,7 +258,8 @@ class ApplyHistoryBest(DispatchContext):
     records : str or iterator of (MeasureInput, MeasureResult)
         Collection of tuning records.
         If is str, then it should be the filename of a records log file.
-        Each row of this file is an encoded record pair. Otherwise, it is an iterator.
+                   Each row of this file is an encoded record pair.
+        Otherwise, it is an iterator.
     """
     def __init__(self, records):
         super(ApplyHistoryBest, self).__init__()
@@ -205,9 +279,9 @@ class ApplyHistoryBest(DispatchContext):
         records : str or iterator of (MeasureInput, MeasureResult)
             Collection of tuning records.
             If is str, then it should be the filename of a records log file.
-            Each row of this file is an encoded record pair. Otherwise, it is an iterator.
+                       Each row of this file is an encoded record pair.
+            Otherwise, it is an iterator.
         """
-        # pylint: disable=import-outside-toplevel
         from pathlib import Path
         from ..record import load_from_file
 
@@ -261,8 +335,7 @@ class ApplyHistoryBest(DispatchContext):
         if key in self._best_user_defined:
             return self._best_user_defined[key]
         if key in self.best_by_model:
-            inp, _ = self.best_by_model[key]
-            return inp.config
+            return self.best_by_model[key][0].config
 
         # then try matching by target key
         for k in target.keys:
@@ -270,16 +343,13 @@ class ApplyHistoryBest(DispatchContext):
             if key in self._best_user_defined:
                 return self._best_user_defined[key]
             if key in self.best_by_targetkey:
-                inp, _ = self.best_by_targetkey[key]
-                return inp.config
+                return self.best_by_targetkey[key][0].config
 
         return None
 
     def update(self, target, workload, cfg):
         model = target.model
         key = (model, workload)
-        # assume user provided config is the best
-        cfg.cost = 0
         self._best_user_defined[key] = cfg
 
         for k in target.keys:
@@ -298,17 +368,21 @@ class FallbackContext(DispatchContext):
     def __init__(self):
         super(FallbackContext, self).__init__()
         self.memory = {}
+        self.silent = False
+
+        # a set to prevent print duplicated message
+        self.messages = set()
 
     def _query_inside(self, target, workload):
         key = (str(target), workload)
         if key in self.memory:
             return self.memory[key]
 
-        if not _env.GLOBAL_SCOPE.silent:
+        if not self.silent:
             msg = "Cannot find config for target=%s, workload=%s. A fallback configuration "\
                   "is used, which may bring great performance regression." % (target, workload)
-            if msg not in DispatchContext.warning_messages:
-                DispatchContext.warning_messages.add(msg)
+            if msg not in self.messages:
+                self.messages.add(msg)
                 logger.warning(msg)
         cfg = FallbackConfigEntity()
 
@@ -380,7 +454,6 @@ class ApplyGraphBest(DispatchContext):
                    Each row of this file is an encoded record pair.
             Otherwise, it is an iterator.
         """
-        # pylint: disable=import-outside-toplevel
         from ..record import load_from_file
 
         super(ApplyGraphBest, self).__init__()
@@ -408,12 +481,8 @@ class ApplyGraphBest(DispatchContext):
         """
         if self._counter < len(self._records):
             cfg = self._records[self._counter][0].config
-            wkl = self._records[self._counter][0].task.workload
-            if workload is not None:
-                assert wkl == workload
             self._counter += 1
-            self.update(target, wkl, cfg)
-            cfg.workload = wkl
+            self.update(target, workload, cfg)
             return cfg
         key = (str(target), workload)
         if key not in self._global_cfg_dict:

@@ -18,7 +18,6 @@
 """TVM operator depth_to_space compute."""
 from __future__ import absolute_import
 import tvm
-from tvm import te
 from .. import tag
 
 
@@ -27,7 +26,7 @@ def depth_to_space(data, block_size, layout='NCHW', mode='DCR'):
 
     Parameters
     ----------
-    data : tvm.te.Tensor
+    data : tvm.Tensor
         4-D tensor in either NCHW or NHWC layout.
 
     block_size : int
@@ -43,17 +42,17 @@ def depth_to_space(data, block_size, layout='NCHW', mode='DCR'):
 
     Returns
     -------
-    output : tvm.te.Tensor
+    output : tvm.Tensor
         Output of shape [N, C / block_size**2, H * block_size, W * block_size]
     """
     if layout == 'NCHW':
         in_n, in_c, in_h, in_w = data.shape
-        channel_factor = tvm.tir.truncdiv(in_c, (block_size * block_size))
+        channel_factor = tvm.truncdiv(in_c, (block_size * block_size))
         output_shape = [in_n, channel_factor,
                         in_h * block_size, in_w * block_size]
     elif layout == 'NHWC':
         in_n, in_h, in_w, in_c = data.shape
-        channel_factor = tvm.tir.truncdiv(in_c, (block_size * block_size))
+        channel_factor = tvm.truncdiv(in_c, (block_size * block_size))
         output_shape = [in_n, in_h * block_size,
                         in_w * block_size, channel_factor]
     else:
@@ -67,10 +66,10 @@ def depth_to_space(data, block_size, layout='NCHW', mode='DCR'):
         return n, c, y, x
 
     def _get_pixel(n, c, y, x):
-        block_x = tvm.tir.truncdiv(x, block_size)
-        block_y = tvm.tir.truncdiv(y, block_size)
-        idx_x = tvm.tir.truncmod(x, block_size)
-        idx_y = tvm.tir.truncmod(y, block_size)
+        block_x = tvm.truncdiv(x, block_size)
+        block_y = tvm.truncdiv(y, block_size)
+        idx_x = tvm.truncmod(x, block_size)
+        idx_y = tvm.truncmod(y, block_size)
         if mode == "DCR":
             channel_idx = channel_factor * ((block_size * idx_y) + idx_x) + c
         else:
@@ -86,4 +85,4 @@ def depth_to_space(data, block_size, layout='NCHW', mode='DCR'):
         n, c, y, x = _get_indices(*indices)
         return _get_pixel(n, c, y, x)
 
-    return te.compute(output_shape, _compute, name='depth_to_space', tag=tag.INJECTIVE)
+    return tvm.compute(output_shape, _compute, name='depth_to_space', tag=tag.INJECTIVE)

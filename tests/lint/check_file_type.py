@@ -36,14 +36,12 @@ ALLOW_EXTENSION = {
     "scala",
     "java",
     "go",
-    "ts",
     "sh",
     "py",
     "pyi",
     "pxi",
     "pyd",
     "pyx",
-    "cu",
     # relay text format
     "rly",
     # configurations
@@ -74,15 +72,12 @@ ALLOW_EXTENSION = {
     "sdc",
     # generated parser
     "interp",
-    "tokens",
-    # interface definition
-    "idl",
+    "tokens"
     }
 
 # List of file names allowed
 ALLOW_FILE_NAME = {
     ".gitignore",
-    ".eslintignore",
     ".gitattributes",
     "README",
     "Makefile",
@@ -94,23 +89,21 @@ ALLOW_FILE_NAME = {
     ".gitmodules",
     "CODEOWNERS",
     ".scalafmt.conf",
-    "Cargo.lock",
-    "with_the_same_user",
    }
 
 # List of specific files allowed in relpath to <proj_root>
 ALLOW_SPECIFIC_FILE = {
+    "docker/with_the_same_user",
     "LICENSE",
     "NOTICE",
     "KEYS",
     "DISCLAIMER",
     "Jenkinsfile",
-    # cargo config
-    "rust/runtime/tests/test_wasm32/.cargo/config",
-    "rust/tvm-graph-rt/tests/test_wasm32/.cargo/config",
-    "apps/sgx/.cargo/config",
+    # sgx file
+    "apps/sgx/enclave/sgx-deps.diff",
     # html for demo purposes
-    "web/apps/browser/rpc_server.html",
+    "tests/webgl/test_static_webgl_library.html",
+    "web/example_rpc.html",
     # images are normally not allowed
     # discuss with committers before add more images
     "apps/android_rpc/app/src/main/res/mipmap-hdpi/ic_launcher.png",

@@ -22,7 +22,6 @@ Use "android" as the key if you wish to avoid modifying this script.
 """
 
 import tvm
-from tvm import te
 import os
 from tvm import rpc
 from tvm.contrib import util, ndk
@@ -45,9 +44,9 @@ test_vulkan = False
 
 def test_rpc_module():
     # graph
-    n = tvm.runtime.convert(1024)
-    A = te.placeholder((n,), name='A')
-    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
+    n = tvm.convert(1024)
+    A = tvm.placeholder((n,), name='A')
+    B = tvm.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
     a_np = np.random.uniform(size=1024).astype(A.dtype)
     temp = util.tempdir()
 
@@ -57,7 +56,7 @@ def test_rpc_module():
                              session_timeout=60)
 
     # Compile the Graph for CPU target
-    s = te.create_schedule(B.op)
+    s = tvm.create_schedule(B.op)
     xo, xi = s[B].split(B.op.axis[0], factor=64)
     s[B].parallel(xi)
     s[B].pragma(xo, "parallel_launch_point")
@@ -80,10 +79,10 @@ def test_rpc_module():
 
     # Compile the Graph for OpenCL target
     if test_opencl:
-        s = te.create_schedule(B.op)
+        s = tvm.create_schedule(B.op)
         xo, xi = s[B].split(B.op.axis[0], factor=64)
-        s[B].bind(xi, te.thread_axis("threadIdx.x"))
-        s[B].bind(xo, te.thread_axis("blockIdx.x"))
+        s[B].bind(xi, tvm.thread_axis("threadIdx.x"))
+        s[B].bind(xo, tvm.thread_axis("blockIdx.x"))
         # Build the dynamic lib.
         # If we don't want to do metal and only use cpu, just set target to be target
         f = tvm.build(s, [A, B], "opencl", target_host=target, name="myadd")
@@ -103,10 +102,10 @@ def test_rpc_module():
 
     # Compile the Graph for Vulkan target
     if test_vulkan:
-        s = te.create_schedule(B.op)
+        s = tvm.create_schedule(B.op)
         xo, xi = s[B].split(B.op.axis[0], factor=64)
-        s[B].bind(xi, te.thread_axis("threadIdx.x"))
-        s[B].bind(xo, te.thread_axis("blockIdx.x"))
+        s[B].bind(xi, tvm.thread_axis("threadIdx.x"))
+        s[B].bind(xo, tvm.thread_axis("blockIdx.x"))
         # Build the dynamic lib.
         # If we don't want to do metal and only use cpu, just set target to be target
         f = tvm.build(s, [A, B], "vulkan", target_host=target, name="myadd")

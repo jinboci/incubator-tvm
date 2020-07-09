@@ -20,26 +20,24 @@ from __future__ import absolute_import
 
 import numpy as np
 
-import tvm._ffi
-from tvm.runtime import container, Object
-from tvm.ir import IRModule
-
+from tvm import container
 from . import _backend
 from .. import _make, analysis, transform
+from .. import module
 from ... import nd
-from ..expr import Tuple, RefCreate, Call, Constant, GlobalVar, const
-from ..function import Function
+from ..base import Object, register_relay_node
+from ..expr import Tuple, RefCreate, Call, Constant, GlobalVar, Function, const
 from ..scope_builder import ScopeBuilder
 
 
-@tvm._ffi.register_object("relay.ConstructorValue")
+@register_relay_node
 class ConstructorValue(Object):
     def __init__(self, tag, fields, constructor):
         self.__init_handle_by_constructor__(
             _make.ConstructorValue, tag, fields, constructor)
 
 
-@tvm._ffi.register_object("relay.RefValue")
+@register_relay_node
 class RefValue(Object):
     def __init__(self, value):
         self.__init_handle_by_constructor__(
@@ -86,14 +84,14 @@ class Executor(object):
         expr: relay.Expr
             The expression to evaluate
 
-        args: List[tvm.nd.NDArray]
+        args: List[tvm.NDArray]
             The arguments to pass to the evaluator.
 
         kwargs: Dict[str, tvm.NDArrray]
             The keyword arguments to pass to the evaluator.
 
         Returns:
-            args: List[tvm.nd.NDArray]
+            args: List[tvm.NDArray]
                 The new arguments with all keyword arguments placed in the correct slot.
         """
         assert expr is not None
@@ -188,10 +186,10 @@ class Interpreter(Executor):
 
     Parameters
     ----------
-    mod : tvm.IRModule
+    mod : tvm.relay.Module
         The module to support the execution.
 
-    ctx : tvmContext
+    ctx : tvm.TVMContext
         The runtime context to run the code on.
 
     target : tvm.Target
@@ -207,13 +205,13 @@ class Interpreter(Executor):
 
         Returns
         -------
-        opt_mod : tvm.IRModule
+        opt_mod : tvm.relay.Module
             The optimized module.
         """
-        seq = tvm.transform.Sequential([transform.SimplifyInference(),
-                                        transform.FuseOps(0),
-                                        transform.ToANormalForm(),
-                                        transform.InferType()])
+        seq = transform.Sequential([transform.SimplifyInference(),
+                                    transform.FuseOps(0),
+                                    transform.ToANormalForm(),
+                                    transform.InferType()])
         return seq(self.mod)
 
     def _make_executor(self, expr=None):
@@ -241,7 +239,7 @@ class Interpreter(Executor):
                 if self.mod:
                     self.mod["main"] = func
                 else:
-                    self.mod = IRModule.from_expr(func)
+                    self.mod = module.Module.from_expr(func)
 
             mod = self.optimize()
             opt_expr = Call(mod["main"], relay_args)

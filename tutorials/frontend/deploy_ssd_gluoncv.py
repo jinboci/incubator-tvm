@@ -24,7 +24,6 @@ This article is an introductory tutorial to deploy SSD models with TVM.
 We will use GluonCV pre-trained SSD model and convert it to Relay IR
 """
 import tvm
-from tvm import te
 
 from matplotlib import pyplot as plt
 from tvm.relay.testing.config import ctx_list
@@ -48,7 +47,7 @@ from gluoncv import model_zoo, data, utils
 #
 #   To get best inference performance on Intel graphics,
 #   change target argument to :code:`opencl -device=intel_graphics`.
-#   But when using Intel graphics on Mac, target needs to
+#   But when using Intel graphics on Mac, target needs to 
 #   be set to `opencl` only for the reason that Intel subgroup
 #   extension is not supported on Mac.
 #
@@ -87,7 +86,7 @@ block = model_zoo.get_model(model_name, pretrained=True)
 
 def build(target):
     mod, params = relay.frontend.from_mxnet(block, {"data": dshape})
-    with tvm.transform.PassContext(opt_level=3):
+    with relay.build_config(opt_level=3):
         graph, lib, params = relay.build(mod, target, params=params)
     return graph, lib, params
 

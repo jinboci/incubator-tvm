@@ -21,11 +21,9 @@ from __future__ import absolute_import as _abs
 import subprocess
 import os
 import warnings
-
-import tvm._ffi
-from tvm.runtime import ndarray as nd
-
 from . import util
+from .. import ndarray as nd
+from ..api import register_func
 from .._ffi.base import py_str
 
 def compile_cuda(code,
@@ -98,8 +96,7 @@ def compile_cuda(code,
     (out, _) = proc.communicate()
 
     if proc.returncode != 0:
-        msg = code
-        msg += "\nCompilation error:\n"
+        msg = "Compilation error:\n"
         msg += py_str(out)
         raise RuntimeError(msg)
 
@@ -154,7 +151,7 @@ def get_cuda_version(cuda_path):
         raise RuntimeError("Cannot read cuda version file")
 
 
-@tvm._ffi.register_func("tvm_callback_libdevice_path")
+@register_func("tvm_callback_libdevice_path")
 def find_libdevice_path(arch):
     """Utility function to find libdevice
 
@@ -173,7 +170,7 @@ def find_libdevice_path(arch):
     selected_ver = 0
     selected_path = None
     cuda_ver = get_cuda_version(cuda_path)
-    if cuda_ver in (9.0, 9.1, 10.0, 11.0):
+    if cuda_ver in (9.0, 9.1, 10.0):
         path = os.path.join(lib_path, "libdevice.10.bc")
     else:
         for fn in os.listdir(lib_path):
@@ -234,7 +231,11 @@ def have_fp16(compute_version):
     # https://docs.nvidia.com/cuda/cuda-c-programming-guide/#arithmetic-instructions
     if major == 5 and minor == 3:
         return True
-    if major >= 6:
+    # NOTE: exclude compute capability 6.1 devices although it is actually available
+    #       to compute fp16, because these devices only have low-rate fp16 performance.
+    if major == 6 and minor != 1:
+        return True
+    if major == 7:
         return True
 
     return False

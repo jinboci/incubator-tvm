@@ -15,20 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
 import numpy as np
 import topi.testing
 from tvm.contrib import cblas
 
-def verify_matmul_add(m, l, n, transa=False, transb=False, dtype="float32"):
-    bias = te.var('bias', dtype=dtype)
+def verify_matmul_add(m, l, n, transa=False, transb=False, dtype=tvm.float32):
+    bias = tvm.var('bias', dtype=dtype)
     ashape = (l, n) if transa else (n, l)
     bshape = (m, l) if transb else (l, m)
-    A = te.placeholder(ashape, name='A', dtype=dtype)
-    B = te.placeholder(bshape, name='B', dtype=dtype)
+    A = tvm.placeholder(ashape, name='A', dtype=dtype)
+    B = tvm.placeholder(bshape, name='B', dtype=dtype)
     C = cblas.matmul(A, B, transa, transb)
-    D = te.compute(C.shape, lambda i, j: C[i,j] + bias, name="D")
-    s = te.create_schedule(D.op)
+    D = tvm.compute(C.shape, lambda i, j: C[i,j] + bias, name="D")
+    s = tvm.create_schedule(D.op)
 
     def get_numpy(a, b, bb, transa, transb):
         if transa:
@@ -38,7 +37,7 @@ def verify_matmul_add(m, l, n, transa=False, transb=False, dtype="float32"):
         return np.dot(a, b) + bb
 
     def verify(target="llvm"):
-        if not tvm.runtime.enabled(target):
+        if not tvm.module.enabled(target):
             print("skip because %s is not enabled..." % target)
             return
         if not tvm.get_global_func("tvm.contrib.cblas.matmul", True):
@@ -65,14 +64,14 @@ def test_matmul_add():
     verify_matmul_add(1, 16, 3, False, False)
     verify_matmul_add(1, 16, 3, True, True)
 
-def verify_batch_matmul(batch, m, l, n, transa=False, transb=False, iterative=False, dtype="float32"):
+def verify_batch_matmul(batch, m, l, n, transa=False, transb=False, iterative=False, dtype=tvm.float32):
     ashape = (batch, l, n) if transa else (batch, n, l)
     bshape = (batch, m, l) if transb else (batch, l, m)
-    A = te.placeholder(ashape, name='A', dtype=dtype)
-    B = te.placeholder(bshape, name='B', dtype=dtype)
+    A = tvm.placeholder(ashape, name='A', dtype=dtype)
+    B = tvm.placeholder(bshape, name='B', dtype=dtype)
     C = cblas.batch_matmul(A, B, transa, transb)
-    D = te.compute(C.shape, lambda k, i, j: C[k, i,j], name="D")
-    s = te.create_schedule(D.op)
+    D = tvm.compute(C.shape, lambda k, i, j: C[k, i,j], name="D")
+    s = tvm.create_schedule(D.op)
 
     def get_numpy(a, b, transa, transb):
         if transa:
@@ -82,7 +81,7 @@ def verify_batch_matmul(batch, m, l, n, transa=False, transb=False, iterative=Fa
         return topi.testing.batch_matmul(a, b)
 
     def verify(target="llvm"):
-        if not tvm.runtime.enabled(target):
+        if not tvm.module.enabled(target):
             print("skip because %s is not enabled..." % target)
             return
         if not tvm.get_global_func("tvm.contrib.cblas.matmul", True):

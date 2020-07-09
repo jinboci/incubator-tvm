@@ -19,15 +19,21 @@
 import numpy as np
 
 import tvm
-from tvm import te
 from tvm import autotvm
 import topi
 
 from .util import is_packed_layout
 from ..environment import get_env
 
-@autotvm.register_topi_compute("conv2d_packed.vta")
-def conv2d_packed(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
+@autotvm.register_topi_compute(topi.nn.conv2d, 'vta', 'direct')
+def _declaration_conv2d(cfg,
+                        data,
+                        kernel,
+                        strides,
+                        padding,
+                        dilation,
+                        layout,
+                        out_dtype):
     """ Packed conv2d function."""
     if not is_packed_layout(layout):
         raise topi.InvalidShapeError()
@@ -45,14 +51,14 @@ def conv2d_packed(cfg, data, kernel, strides, padding, dilation, layout, out_dty
 
     ishape = topi.util.get_const_tuple(data.shape)
     kshape = topi.util.get_const_tuple(kernel.shape)
-    d_i = te.reduce_axis((0, kshape[2]), name='d_i')
-    d_j = te.reduce_axis((0, kshape[3]), name='d_j')
-    k_o = te.reduce_axis((0, ishape[1]), name='k_o')
-    k_i = te.reduce_axis((0, ishape[-1]), name='k_i')
+    d_i = tvm.reduce_axis((0, kshape[2]), name='d_i')
+    d_j = tvm.reduce_axis((0, kshape[3]), name='d_j')
+    k_o = tvm.reduce_axis((0, ishape[1]), name='k_o')
+    k_i = tvm.reduce_axis((0, ishape[-1]), name='k_i')
     hstride, wstride = strides
-    res = te.compute(
+    res = tvm.compute(
         oshape,
-        lambda b_o, c_o, i, j, b_i, c_i: te.sum(
+        lambda b_o, c_o, i, j, b_i, c_i: tvm.sum(
             pad_data[b_o, k_o, i*hstride+d_i, j*wstride+d_j, b_i, k_i].astype(out_dtype) *
             kernel[c_o, k_o, d_i, d_j, c_i, k_i].astype(out_dtype),
             axis=[k_o, d_i, d_j, k_i]),
@@ -63,9 +69,8 @@ def conv2d_packed(cfg, data, kernel, strides, padding, dilation, layout, out_dty
 
     return res
 
-@autotvm.register_topi_schedule("conv2d_packed.vta")
-def schedule_conv2d_packed(cfg, outs):
-    """Schedule packed conv2d"""
+@autotvm.register_topi_schedule(topi.generic.schedule_conv2d_nchw, 'vta', 'direct')
+def _schedule_conv2d(cfg, outs):
     assert len(outs) == 1
     output = outs[0]
     const_ops = []
@@ -82,7 +87,7 @@ def schedule_conv2d_packed(cfg, outs):
                 else:
                     ewise_ops.append(op)
             for tensor in op.input_tensors:
-                if isinstance(tensor.op, tvm.te.PlaceholderOp):
+                if isinstance(tensor.op, tvm.tensor.PlaceholderOp):
                     ewise_inputs.append((op, tensor))
                 else:
                     _traverse(tensor.op)
@@ -93,7 +98,7 @@ def schedule_conv2d_packed(cfg, outs):
     _traverse(output.op)
     assert len(conv2d_res) == 1
     conv2d_stage = conv2d_res[0].output(0)
-    s = te.create_schedule(output.op)
+    s = tvm.create_schedule(output.op)
 
     ##### space definition begin #####
     b, c_o, x_i, x_j, _, _ = s[conv2d_stage].op.axis
@@ -108,7 +113,7 @@ def schedule_conv2d_packed(cfg, outs):
     ###### space definition end ######
 
     data, kernel = conv2d_stage.op.input_tensors
-    if isinstance(data.op, tvm.te.ComputeOp) and "pad" in data.op.tag:
+    if isinstance(data.op, tvm.tensor.ComputeOp) and "pad" in data.op.tag:
         temp = data.op.input_tensors[0]
         pad_data = data
         data = temp
@@ -161,13 +166,13 @@ def schedule_conv2d_packed(cfg, outs):
     if cfg['oc_nthread'].val > 1:
         _, v_t = s[output].split(x_co0, factor=cfg['oc_nthread'].val)
         s[output].reorder(v_t, x_bo)
-        s[output].bind(v_t, te.thread_axis("cthread"))
+        s[output].bind(v_t, tvm.thread_axis("cthread"))
 
     # virtual threading along spatial rows
     if cfg['h_nthread'].val > 1:
         _, v_t = s[output].split(x_i0, factor=cfg['h_nthread'].val)
         s[output].reorder(v_t, x_bo)
-        s[output].bind(v_t, te.thread_axis("cthread"))
+        s[output].bind(v_t, tvm.thread_axis("cthread"))
 
     x_bo, x_co, x_i, x_j, x_bi, x_ci = s[conv2d_stage].op.axis
     k_o, d_i, d_j, k_i = s[conv2d_stage].op.reduce_axis

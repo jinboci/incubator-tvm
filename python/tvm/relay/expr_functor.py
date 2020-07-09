@@ -16,13 +16,12 @@
 # under the License.
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
 """The expression functor of Relay."""
-from tvm.ir import Op
 
-from .function import Function
-from .expr import Call, Let, Var, GlobalVar
+from .expr import Function, Call, Let, Var, GlobalVar
 from .expr import If, Tuple, TupleGetItem, Constant
 from .expr import RefCreate, RefRead, RefWrite
 from .adt import Constructor, Match, Clause
+from .op import Op
 
 class ExprFunctor:
     """
@@ -132,22 +131,22 @@ class ExprVisitor(ExprFunctor):
 
     The default behavior recursively traverses the AST.
     """
-    def visit_tuple(self, tup):
-        for x in tup.fields:
+    def visit_tuple(self, t):
+        for x in t.fields:
             self.visit(x)
 
-    def visit_call(self, call):
-        self.visit(call.op)
-        for a in call.args:
+    def visit_call(self, c):
+        self.visit(c.op)
+        for a in c.args:
             self.visit(a)
 
-    def visit_var(self, var):
+    def visit_var(self, v):
         pass
 
-    def visit_let(self, let):
-        self.visit(let.var)
-        self.visit(let.value)
-        self.visit(let.body)
+    def visit_let(self, l):
+        self.visit(l.var)
+        self.visit(l.value)
+        self.visit(l.body)
 
     def visit_function(self, f):
         self.visit(f.body)

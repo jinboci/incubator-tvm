@@ -17,36 +17,21 @@
  * under the License.
  */
 
+#![feature(proc_macro_span)]
+
 extern crate proc_macro;
 
-use quote::quote;
 use std::{fs::File, io::Read};
-use syn::parse::{Parse, ParseStream, Result};
-use syn::LitStr;
 
-use std::path::PathBuf;
-
-struct ImportModule {
-    importing_file: LitStr,
-}
-
-impl Parse for ImportModule {
-    fn parse(input: ParseStream) -> Result<Self> {
-        let importing_file: LitStr = input.parse()?;
-        Ok(ImportModule { importing_file })
-    }
-}
+use proc_quote::quote;
 
 #[proc_macro]
 pub fn import_module(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let import_module_args = syn::parse_macro_input!(input as ImportModule);
+    let obj_file_path = syn::parse_macro_input!(input as syn::LitStr);
 
-    let manifest =
-        std::env::var("CARGO_MANIFEST_DIR").expect("variable should always be set by Cargo.");
-
-    let mut path = PathBuf::new();
-    path.push(manifest);
-    path = path.join(import_module_args.importing_file.value());
+    let mut path = obj_file_path.span().unwrap().source_file().path();
+    path.pop(); // remove the filename
+    path.push(obj_file_path.value());
 
     let mut fd = File::open(&path)
         .unwrap_or_else(|_| panic!("Unable to find TVM object file at `{}`", path.display()));
@@ -72,7 +57,7 @@ pub fn import_module(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
         goblin::Object::Mach(goblin::mach::Mach::Binary(obj)) => {
             obj.symbols()
                 .filter_map(|s| match s {
-                    Ok((name, ref nlist))
+                    Ok((name, nlist))
                         if nlist.is_global()
                             && nlist.n_sect != 0
                             && !name.ends_with("tvm_module_ctx") =>

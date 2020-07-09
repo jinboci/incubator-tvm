@@ -21,7 +21,7 @@
 # Execute command within a docker container
 #
 # Usage: build.sh <CONTAINER_TYPE> [--dockerfile <DOCKERFILE_PATH>] [-it]
-#                [--net=host] [--cache-from <IMAGE_NAME>] <COMMAND>
+#                    <COMMAND>
 #
 # CONTAINER_TYPE: Type of the docker container used the run the build: e.g.,
 #                 (cpu | gpu)
@@ -29,9 +29,6 @@
 # DOCKERFILE_PATH: (Optional) Path to the Dockerfile used for docker build.  If
 #                  this optional value is not supplied (via the --dockerfile
 #                  flag), will use Dockerfile.CONTAINER_TYPE in default
-#
-# IMAGE_NAME: An image to be as a source for cached layers when building the
-#             Docker image requested.
 #
 # COMMAND: Command to be executed in the docker container
 #
@@ -60,15 +57,6 @@ fi
 
 if [[ "$1" == "--net=host" ]]; then
     CI_DOCKER_EXTRA_PARAMS+=('--net=host')
-    CI_DOCKER_BUILD_EXTRA_PARAMS+=("--network=host")
-    shift 1
-fi
-
-if [[ "$1" == "--cache-from" ]]; then
-    shift 1
-    cached_image="$1"
-    CI_DOCKER_BUILD_EXTRA_PARAMS+=("--cache-from tvm.$CONTAINER_TYPE")
-    CI_DOCKER_BUILD_EXTRA_PARAMS+=("--cache-from $cached_image")
     shift 1
 fi
 
@@ -92,13 +80,7 @@ fi
 
 # Use nvidia-docker if the container is GPU.
 if [[ "${CONTAINER_TYPE}" == *"gpu"* ]]; then
-    if ! type "nvidia-docker" 1> /dev/null 2> /dev/null
-    then
-        DOCKER_BINARY="docker"
-        CUDA_ENV=" --gpus all "${CUDA_ENV}
-    else
-        DOCKER_BINARY="nvidia-docker"
-    fi
+    DOCKER_BINARY="nvidia-docker"
 else
     DOCKER_BINARY="docker"
 fi
@@ -138,9 +120,7 @@ echo ""
 # Build the docker container.
 echo "Building container (${DOCKER_IMG_NAME})..."
 docker build -t ${DOCKER_IMG_NAME} \
-    -f "${DOCKERFILE_PATH}" \
-    ${CI_DOCKER_BUILD_EXTRA_PARAMS[@]} \
-    "${DOCKER_CONTEXT_PATH}"
+    -f "${DOCKERFILE_PATH}" "${DOCKER_CONTEXT_PATH}"
 
 # Check docker build status
 if [[ $? != "0" ]]; then
@@ -163,8 +143,6 @@ ${DOCKER_BINARY} run --rm --pid=host \
     -e "CI_BUILD_UID=$(id -u)" \
     -e "CI_BUILD_GROUP=$(id -g -n)" \
     -e "CI_BUILD_GID=$(id -g)" \
-    -e "CI_PYTEST_ADD_OPTIONS=$CI_PYTEST_ADD_OPTIONS" \
-    ${CUDA_ENV}\
     ${CI_DOCKER_EXTRA_PARAMS[@]} \
     ${DOCKER_IMG_NAME} \
     bash --login docker/with_the_same_user \

@@ -15,27 +15,25 @@
     specific language governing permissions and limitations
     under the License.
 
-.. _error-handling-guide:
+.. _error_guide:
 
 Error Handling Guide
 ====================
 TVM contains structured error classes to indicate specific types of error.
 Please raise a specific error type when possible, so that users can
 write code to handle a specific error category if necessary.
+
+All the error types are defined in :any:`tvm.error` namespace.
 You can directly raise the specific error object in python.
 In other languages like c++, you simply add ``<ErrorType>:`` prefix to
 the error message(see below).
-
-.. note::
-
-   Please refer to :py:mod:`tvm.error` for the list of errors.
 
 Raise a Specific Error in C++
 -----------------------------
 You can add ``<ErrorType>:`` prefix to your error message to
 raise an error of the corresponding type.
 Note that you do not have to add a new type
-:py:class:`tvm.error.TVMError` will be raised by default when
+:any:`tvm.error.TVMError` will be raised by default when
 there is no error type prefix in the message.
 This mechanism works for both ``LOG(FATAL)`` and ``CHECK`` macros.
 The following code gives an example on how to do so.
@@ -57,7 +55,7 @@ Here is what will happen if we call the registered function:
 .. code::
 
   >>> import tvm
-  >>> tvm.testing.ErrorTest(0, 1)
+  >>> tvm._api_internal._ErrorTest(0, 1)
   Traceback (most recent call last):
     File "<stdin>", line 1, in <module>
     File "/path/to/tvm/python/tvm/_ffi/_ctypes/function.py", line 190, in __call__
@@ -70,7 +68,7 @@ Here is what will happen if we call the registered function:
     File "/path/to/tvm/src/api/api_test.cc", line 80
   ValueError: Check failed: x == y (0 vs. 1) : expect x and y to be equal.
   >>>
-  >>> tvm.testing.ErrorTest(1, 1)
+  >>> tvm._api_internal._ErrorTest(1, 1)
   Traceback (most recent call last):
     File "<stdin>", line 1, in <module>
     File "/path/to/tvm/python/tvm/_ffi/_ctypes/function.py", line 190, in __call__
@@ -97,7 +95,7 @@ We try to keep a reasonable amount of error types.
 If you feel there is a need to add a new error type, do the following steps:
 
 - Send a RFC proposal with a description and usage examples in the current codebase.
-- Add the new error type to :py:mod:`tvm.error` with clear documents.
+- Add the new error type to :any:`tvm.error` with clear documents.
 - Update the list in this file to include the new error type.
 - Change the code to use the new error type.
 
@@ -120,3 +118,22 @@ error messages when necessary.
 
 If we need to introduce a wrapper function that constructs multi-line error messages,
 please put wrapper in the same file so other developers can look up the implementation easily.
+
+
+System-wide Errors
+------------------
+
+.. autoclass:: tvm.error.TVMError
+
+.. autoclass:: tvm.error.InternalError
+
+
+Frontend Errors
+---------------
+.. autoclass:: tvm.error.OpNotImplemented
+
+.. autoclass:: tvm.error.OpAttributeInvalid
+
+.. autoclass:: tvm.error.OpAttributeRequired
+
+.. autoclass:: tvm.error.OpAttributeNotImplemented

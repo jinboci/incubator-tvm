@@ -16,12 +16,11 @@
 # under the License.
 # pylint: disable=import-self, invalid-name, line-too-long, unused-argument
 """Caffe2 frontend"""
+from __future__ import absolute_import as _abs
 import tvm
-from tvm.ir import IRModule
-
 from .. import analysis
 from .. import expr as _expr
-from .. import function as _function
+from .. import module as _module
 from .. import op as _op
 from ... import nd as _nd
 from .common import AttrCvt, Renamer
@@ -172,12 +171,6 @@ class Add(Elemwise):
     name = 'add'
 
 
-class Mul(Elemwise):
-    """ Operator converter for Mul.
-    """
-    name = 'multiply'
-
-
 class Pool(Caffe2OpConverter):
     """ A helper class for pool op converters.
     """
@@ -227,33 +220,6 @@ class Conv(Caffe2OpConverter):
                 'kernel_shape': 'kernel_size',
                 'pads': ('padding', (0, 0), revert_caffe2_pad),
                 'strides': 'strides',
-                'dilations': ('dilation', (1, 1)),
-                'order': ('data_layout', ("NCHW"), lambda x: x if isinstance(x, str) else x.decode('UTF-8')),
-            },
-            excludes=[],
-            ignores=_caffe2_internal_args,
-            custom_check=dimension_constraint())(inputs[:2], args, params)
-        use_bias = len(inputs) == 3
-        if use_bias:
-            out = _op.nn.bias_add(out, inputs[2])
-        return out
-
-
-class ConvTranspose(Caffe2OpConverter):
-    """ Operator converter for ConvTranspose.
-    """
-
-    @classmethod
-    def _impl(cls, inputs, args, params):
-        # get number of channels
-        channels = infer_channels(inputs[1], True)
-        args['channels'] = channels
-        _clean_up_pool_args(args)
-        out = AttrCvt(
-            op_name=dimension_picker('conv', '_transpose'),
-            transforms={
-                'kernel_shape': 'kernel_size',
-                'pads': ('padding', (0, 0), revert_caffe2_pad),
                 'dilations': ('dilation', (1, 1)),
                 'order': ('data_layout', ("NCHW"), lambda x: x if isinstance(x, str) else x.decode('UTF-8')),
             },
@@ -386,14 +352,12 @@ def _get_convert_map():
         # caffe2 common operators
         'Add': Add.get_converter(),
         'Sum': Sum.get_converter(),
-        'Mul': Mul.get_converter(),
         'Softmax': Softmax.get_converter(),
 
         # nn
         'AveragePool': AveragePool.get_converter(),
         'MaxPool': MaxPool.get_converter(),
         'Conv': Conv.get_converter(),
-        'ConvTranspose': ConvTranspose.get_converter(),
         'Concat': Concat.get_converter(),
         'FC': FC.get_converter(),
         'SpatialBN': SpatialBN.get_converter(),
@@ -419,7 +383,7 @@ class Caffe2NetDef(object):
         self._ops = {}
         self._shape = shape
         self._dtype = dtype
-        self._mod = IRModule({})
+        self._mod = _module.Module({})
 
     def from_caffe2(self, init_net, predict_net):
         """Construct Relay expression from caffe2 graph.
@@ -431,13 +395,12 @@ class Caffe2NetDef(object):
 
         Returns
         -------
-        mod : tvm.IRModule
+        mod : tvm.relay.Module
             The module that optimizations will be performed on.
 
         params : dict
             A dict of name: tvm.nd.array pairs, used as pretrained weights
         """
-        # pylint: disable=import-outside-toplevel
         from caffe2.python import workspace
         workspace.RunNetOnce(init_net)
 
@@ -487,7 +450,7 @@ class Caffe2NetDef(object):
         else:
             outputs = out[0]
 
-        func = _function.Function(analysis.free_vars(outputs), outputs)
+        func = _expr.Function(analysis.free_vars(outputs), outputs)
         self._mod["main"] = func
 
         return self._mod, self._params
@@ -553,7 +516,7 @@ class Caffe2NetDef(object):
         ----------
         op_type : str
             Operator name, such as Convolution, FullyConnected
-        inputs : list of tvm.relay.function.Function
+        inputs : list of tvm.relay.expr.Function
             List of input inputs.
         args : dict
             Dict of operator attributes
@@ -566,7 +529,7 @@ class Caffe2NetDef(object):
 
         Returns
         -------
-        func : tvm.relay.function.Function
+        func : tvm.relay.expr.Function
             Converted relay function
         """
         identity_list = identity_list if identity_list else _identity_list
@@ -601,11 +564,11 @@ def from_caffe2(init_net, predict_net, shape=None, dtype="float32"):
 
     Returns
     -------
-    mod : tvm.IRModule
+    mod : tvm.relay.Module
         The module that optimizations will be performed on.
 
-    params : dict of str to tvm.nd.NDArray
-        Dict of converted parameters stored in tvm.nd.NDArray format
+    params : dict of str to tvm.ndarray
+        Dict of converted parameters stored in tvm.ndarray format
     """
 
     caffe2 = Caffe2NetDef(shape, dtype)

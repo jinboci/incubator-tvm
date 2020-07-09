@@ -15,10 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Unit tests for converting TensorFlow debugging ops to Relay."""
-try:
-    import tensorflow.compat.v1 as tf
-except ImportError:
-    import tensorflow as tf
+import tensorflow as tf
 import numpy as np
 from tvm import relay
 from tvm.relay.frontend.tensorflow import from_tensorflow

@@ -37,25 +37,15 @@ except ImportError:
             return deque.__new__(cls, *args, **kwds)
 
 import tvm
-import tvm.ir._ffi_api
-from tvm.ir import IRModule
 
+from . import module
 from .base import Span, SourceName
 from . import adt
 from . import expr
-from . import function
 from . import ty
 from . import op
 
 PYTHON_VERSION = sys.version_info.major
-try:
-    from antlr4 import InputStream, CommonTokenStream
-    from antlr4.error.ErrorListener import ErrorListener
-except ImportError:
-    raise Exception("Couldn't find ANTLR runtime." +
-                    "Try running `pip{version} install antlr4-python{version}-runtime`."
-                    .format(version=PYTHON_VERSION))
-
 try:
     from .grammar.py3.RelayVisitor import RelayVisitor
     from .grammar.py3.RelayParser import RelayParser
@@ -63,6 +53,13 @@ try:
 except ImportError:
     raise Exception("Couldn't find ANTLR parser. Try building with USE_ANTLR=ON.")
 
+try:
+    from antlr4 import InputStream, CommonTokenStream
+    from antlr4.error.ErrorListener import ErrorListener
+except ImportError:
+    raise Exception("Couldn't find ANTLR runtime." +
+                    "Try running `pip{version} install antlr4-python{version}-runtime`."
+                    .format(version=PYTHON_VERSION))
 
 sys.setrecursionlimit(10000)
 
@@ -81,7 +78,7 @@ class ParseError(Exception):
 
 class OpWrapper:
     """Overload the __call__ for op."""
-
+    pass
 
 class ExprOp(OpWrapper):
     """Call an expr. The default, but does not handle attrs well."""
@@ -114,12 +111,7 @@ class FuncOp(OpWrapper):
     def __call__(self, args, attrs, type_args):
         if attrs is None:
             attrs = {}
-        if self.operator in (op.reshape, op.strided_slice):
-            x = self.operator(*args)
-        elif self.operator in (op.zeros, op.ones, op.full, op.broadcast_to):
-            x = self.operator(*args, dtype=attrs["dtype"])
-        else:
-            x = self.operator(*args, **{k: self.convert(v) for k, v in attrs.items()})
+        x = self.operator(*args, **{k: self.convert(v) for k, v in attrs.items()})
         if isinstance(x, expr.TupleWrapper):
             x = x.astuple()
         return x
@@ -156,9 +148,7 @@ FUNC_OPS = {
     "nn.dropout": op.nn.dropout_raw,
     "zeros": op.zeros,
     "split": op.split,
-    "cast": op.cast,
-    "clip": op.clip,
-    "right_shift": op.right_shift,
+    "cast": op.cast
 }
 
 TYPE_PREFIXES = [
@@ -200,7 +190,7 @@ def spanify(f):
         sp = Span(sn, line, col)
         if isinstance(ast, tvm.relay.expr.TupleWrapper):
             ast = ast.astuple()
-        tvm.ir._ffi_api.NodeSetSpan(ast, sp)
+        ast.set_span(sp)
         return ast
     return _wrapper
 
@@ -211,7 +201,7 @@ class ParseTreeToRelayIR(RelayVisitor):
 
     def __init__(self, source_name: str) -> None:
         self.source_name = source_name
-        self.module = IRModule({})  # type: IRModule
+        self.module = module.Module({})  # type: module.Module
 
         # Adding an empty scope allows naked lets without pain.
         self.var_scopes = deque([deque()])       # type: Scopes[expr.Var]
@@ -253,7 +243,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         """Pop off the current TypeVar scope and return it."""
         return self.type_var_scopes.popleft()
 
-    def mk_typ(self, name: str, kind: ty.TypeKind) -> ty.TypeVar:
+    def mk_typ(self, name: str, kind: ty.Kind) -> ty.TypeVar:
         """Create a new TypeVar and add it to the TypeVar scope."""
         typ = ty.TypeVar(name, kind)
         self.type_var_scopes[0].append((name, typ))
@@ -283,8 +273,8 @@ class ParseTreeToRelayIR(RelayVisitor):
     def _type_expr_name(self, e):
         if isinstance(e, adt.Constructor):
             return "`{0}` ADT constructor".format(e.belong_to.name_hint)
-        if isinstance(e, ty.GlobalTypeVar):
-            if e.kind == ty.TypeKind.AdtHandle:
+        elif isinstance(e, ty.GlobalTypeVar):
+            if e.kind == ty.Kind.AdtHandle:
                 return "ADT definition"
         return "function definition"
 
@@ -362,12 +352,12 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         return self.visit(ctx)
 
-    def visitProg(self, ctx: RelayParser.ProgContext) -> Union[expr.Expr, IRModule]:
+    def visitProg(self, ctx: RelayParser.ProgContext) -> Union[expr.Expr, module.Module]:
         self.meta = None
         if ctx.METADATA():
             header, data = str(ctx.METADATA()).split("\n", 1)
             assert header == "METADATA:"
-            self.meta = tvm.ir.load_json(data)
+            self.meta = tvm.load_json(data)
         if ctx.defn():
             self.visit_list(ctx.defn())
             return self.module
@@ -378,7 +368,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         return self.module
 
     # Exprs
-    def visitOpIdent(self, ctx) -> tvm.ir.Op:
+    def visitOpIdent(self, ctx) -> op.Op:
         op_name = ".".join([name.getText() for name in ctx.CNAME()])
         if op_name in FUNC_OPS:
             return FuncOp(FUNC_OPS[op_name])
@@ -489,7 +479,7 @@ class ParseTreeToRelayIR(RelayVisitor):
     def mk_func(
             self,
             ctx: Union[RelayParser.FuncContext, RelayParser.DefnContext]) \
-            -> function.Function:
+            -> expr.Function:
         """Construct a function from either a Func or Defn."""
         # Enter var scope early to put params in scope.
         self.enter_var_scope()
@@ -502,7 +492,7 @@ class ParseTreeToRelayIR(RelayVisitor):
             assert type_params
             for ty_param in type_params:
                 name = ty_param.getText()
-                self.mk_typ(name, ty.TypeKind.Type)
+                self.mk_typ(name, ty.Kind.Type)
 
         var_list, attr_list = self.visit(ctx.argList())
         if var_list is None:
@@ -518,11 +508,11 @@ class ParseTreeToRelayIR(RelayVisitor):
             _, type_params = zip(*type_params)
         self.exit_var_scope()
 
-        attrs = tvm.ir.make_node("DictAttrs", **attr_list) if attr_list is not None else None
-        return function.Function(var_list, body, ret_type, type_params, attrs)
+        attrs = tvm.make.node("DictAttrs", **attr_list) if attr_list is not None else None
+        return expr.Function(var_list, body, ret_type, type_params, attrs)
 
     @spanify
-    def visitFunc(self, ctx: RelayParser.FuncContext) -> function.Function:
+    def visitFunc(self, ctx: RelayParser.FuncContext) -> expr.Function:
         return self.mk_func(ctx)
 
     # TODO: how to set spans for definitions?
@@ -538,13 +528,13 @@ class ParseTreeToRelayIR(RelayVisitor):
             ctx: Union[RelayParser.ExternAdtDefnContext, RelayParser.AdtDefnContext]):
         """Handles parsing of the name and type params of an ADT definition."""
         adt_name = ctx.generalIdent().getText()
-        adt_var = self.mk_global_typ_var(adt_name, ty.TypeKind.AdtHandle)
+        adt_var = self.mk_global_typ_var(adt_name, ty.Kind.AdtHandle)
         # parse type params
         type_params = ctx.typeParamList()
         if type_params is None:
             type_params = []
         else:
-            type_params = [self.mk_typ(type_ident.getText(), ty.TypeKind.Type)
+            type_params = [self.mk_typ(type_ident.getText(), ty.Kind.Type)
                            for type_ident in type_params.typeExpr()]
         return adt_var, type_params
 
@@ -633,7 +623,7 @@ class ParseTreeToRelayIR(RelayVisitor):
     def call(self, func, args, attrs, type_args):
         if isinstance(func, OpWrapper):
             return func(args, attrs, type_args)
-        if isinstance(func, adt.Constructor):
+        elif isinstance(func, adt.Constructor):
             return func(*args)
         return expr.Call(func, args, attrs, type_args)
 
@@ -756,7 +746,7 @@ class StrictErrorListener(ErrorListener):
     def reportContextSensitivity(self, recognizer, dfa, startIndex, stopIndex, prediction, configs):
         raise Exception("Context Sensitivity in:\n" + self.text)
 
-def fromtext(data: str, source_name: str = None) -> Union[expr.Expr, IRModule]:
+def fromtext(data: str, source_name: str = None) -> Union[expr.Expr, module.Module]:
     """Parse a Relay program."""
     if data == "":
         raise ParseError("cannot parse the empty string.")

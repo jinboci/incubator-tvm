@@ -24,7 +24,6 @@
 #define TVM_NODE_REPR_PRINTER_H_
 
 #include <tvm/node/functor.h>
-
 #include <iostream>
 
 namespace tvm {
@@ -52,13 +51,7 @@ class ReprPrinter {
  * \brief Dump the node to stderr, used for debug purposes.
  * \param node The input node
  */
-TVM_DLL void Dump(const runtime::ObjectRef& node);
-
-/*!
- * \brief Dump the node to stderr, used for debug purposes.
- * \param node The input node
- */
-TVM_DLL void Dump(const runtime::Object* node);
+TVM_DLL void Dump(const ObjectRef& node);
 
 }  // namespace tvm
 

@@ -20,11 +20,7 @@
 use std::{cmp, collections::HashMap, convert::TryFrom, iter::FromIterator, mem, str};
 
 use failure::Error;
-use nom::{
-    character::complete::{alpha1, digit1},
-    number::complete::{le_i32, le_i64, le_u16, le_u32, le_u64, le_u8},
-};
-
+use nom::{alpha1, digit1, le_i32, le_i64, le_u16, le_u32, le_u64, le_u8, types::CompleteStr};
 use serde;
 use serde_json;
 use tvm_common::{
@@ -36,15 +32,15 @@ use tvm_common::{
 use crate::{errors::GraphFormatError, Module, Storage, Tensor};
 
 // @see `kTVMNDArrayMagic` in `ndarray.h`
-const _NDARRAY_MAGIC: u64 = 0xDD5E_40F0_96B4_A13F;
+const _NDARRAY_MAGIC: u64 = 0xDD5E40F096B4A13F;
 // @see `kTVMNDArrayListMagic` in `graph_runtime.h`
-const _NDARRAY_LIST_MAGIC: u64 = 0xF7E5_8D4F_0504_9CB7;
+const _NDARRAY_LIST_MAGIC: u64 = 0xF7E58D4F05049CB7;
 
 /// A TVM computation graph.
 ///
 /// # Examples
 ///
-/// ```norun
+/// ```
 /// let graph_json = fs::read_to_string("graph.json").unwrap();
 /// let graph = Graph::try_from(&graph_json).unwrap();
 /// ```
@@ -145,7 +141,7 @@ impl<'a> TryFrom<&'a str> for Graph {
 ///
 /// # Examples
 ///
-/// ```norun
+/// ```
 /// use ndarray::Array;
 ///
 /// let syslib = SystemLibModule::default(); // a provider of TVM functions
@@ -179,13 +175,13 @@ impl<'m, 't> GraphExecutor<'m, 't> {
         let tensors = Self::setup_storages(&graph)?;
         Ok(GraphExecutor {
             op_execs: Self::setup_op_execs(&graph, lib, &tensors)?,
-            tensors,
-            graph,
+            tensors: tensors,
+            graph: graph,
         })
     }
 
     /// Runs the computation graph.
-    pub fn run(&mut self) {
+    pub fn run(&self) {
         self.op_execs.iter().for_each(|op_exec| {
             op_exec();
         });
@@ -200,7 +196,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
             .1
             .iter()
             .map(|dltype| {
-                if let Ok((_, dtype)) = tvm_str_to_type(dltype) {
+                if let Ok((_, dtype)) = tvm_str_to_type(CompleteStr(dltype)) {
                     Ok(dtype)
                 } else {
                     Err(GraphFormatError::InvalidDLType(dltype.to_string()))
@@ -211,7 +207,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
         let align = dtypes.iter().map(|dtype| dtype.bits() as usize).max();
         let mut storage_num_bytes = vec![0usize; *storage_ids.iter().max().unwrap_or(&1) + 1];
         for (i, &storage_id) in storage_ids.iter().enumerate() {
-            let dtype_size = (dtypes[i].bits() * dtypes[i].lanes()) >> 3;
+            let dtype_size = dtypes[i].bits() * dtypes[i].lanes() >> 3;
             let nbytes = dtype_size * shapes[i].iter().product::<i64>() as usize;
             storage_num_bytes[storage_id] = cmp::max(nbytes, storage_num_bytes[storage_id]);
         }
@@ -227,9 +223,9 @@ impl<'m, 't> GraphExecutor<'m, 't> {
                 Tensor {
                     data: mem::replace(&mut storages[storage_id], storage),
                     ctx: TVMContext::default(),
-                    dtype,
+                    dtype: dtype,
                     size: shape.iter().product::<i64>() as usize,
-                    shape,
+                    shape: shape,
                     strides: None,
                     byte_offset: 0,
                 }
@@ -243,7 +239,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
     fn setup_op_execs<M: 'm + Module>(
         graph: &Graph,
         lib: &'m M,
-        tensors: &[Tensor<'t>],
+        tensors: &Vec<Tensor<'t>>,
     ) -> Result<Vec<Box<dyn Fn() + 'm>>, Error> {
         ensure!(graph.node_row_ptr.is_some(), "Missing node_row_ptr.");
         let node_row_ptr = graph.node_row_ptr.as_ref().unwrap();
@@ -262,14 +258,15 @@ impl<'m, 't> GraphExecutor<'m, 't> {
                 continue;
             }
 
-            let func = lib
-                .get_function(&attrs.func_name)
-                .ok_or_else(|| format_err!("Library is missing function {}", attrs.func_name))?;
+            let func = lib.get_function(&attrs.func_name).ok_or(format_err!(
+                "Library is missing function {}",
+                attrs.func_name
+            ))?;
             let arg_indices = node
                 .inputs
                 .iter()
                 .map(|entry| graph.entry_index(entry))
-                .chain((0..attrs.num_outputs).map(|oi| Ok(node_row_ptr[i] + oi)));
+                .chain((0..attrs.num_outputs).map(|oi| Ok(node_row_ptr[i].clone() + oi)));
 
             let dl_tensors = arg_indices
                 .map(|idx| {
@@ -282,13 +279,13 @@ impl<'m, 't> GraphExecutor<'m, 't> {
                 })
                 .collect::<Result<Vec<DLTensor>, Error>>()
                 .unwrap();
-            let op: Box<dyn Fn()> = Box::new(move || {
+            let op: Box<dyn Fn()> = box move || {
                 let args = dl_tensors
                     .iter()
                     .map(|t| t.into())
                     .collect::<Vec<TVMArgValue>>();
                 func(&args).unwrap();
-            });
+            };
             op_execs.push(op);
         }
         Ok(op_execs)
@@ -300,7 +297,6 @@ impl<'m, 't> GraphExecutor<'m, 't> {
         })
     }
 
-    #[allow(clippy::if_same_then_else)]
     pub fn set_input<S: AsRef<str>>(&mut self, name: S, value: Tensor) {
         if let Some(idx) = self.get_input_index(name.as_ref()) {
             // TODO: consider `new_with_params` to avoid ever allocating
@@ -326,7 +322,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
     /// Returns the graph input with name `name`, if it exists.
     pub fn get_input<S: AsRef<str>>(&mut self, name: S) -> Option<&Tensor> {
         self.get_input_index(name.as_ref())
-            .map(move |idx| &self.tensors[idx])
+            .and_then(move |idx| Some(&self.tensors[idx]))
     }
 
     /// Returns the graph output with index `index`, if it exists.
@@ -357,86 +353,70 @@ impl<'m, 't> GraphExecutor<'m, 't> {
 }
 
 // Converts a string to TVM DLDataTypeCode. @see `String2DLDataType` in packed_func.h
-named! {
-  tvm_str_to_type<&str, DataType>,
+named!(
+  tvm_str_to_type<CompleteStr, DataType>,
   do_parse!(
     type_name: alpha1 >>
-    bits:      digit1 >>
-    lanes:     opt!(complete!(tuple!(tag!("x"), digit1))) >>
-    (
-        DataType {
-            code: match type_name {
-                "int" => DLDataTypeCode_kDLInt,
-                "uint" => DLDataTypeCode_kDLUInt,
-                "float" => DLDataTypeCode_kDLFloat,
-                _ => DLDataTypeCode_kDLFloat,
-            } as usize,
-            bits: bits.parse::<u8>().unwrap() as usize,
-            lanes: lanes
-                .map(|(_, lanes)| lanes.parse::<u16>().unwrap() as usize)
-                .unwrap_or(1)
-        }
-    )
+    bits: digit1 >>
+    lanes: opt!(tuple!(tag!("x"), digit1)) >>
+    (DataType {
+      code: match type_name {
+        CompleteStr("int") => DLDataTypeCode_kDLInt,
+        CompleteStr("uint") => DLDataTypeCode_kDLUInt,
+        CompleteStr("float") => DLDataTypeCode_kDLFloat,
+        _ => DLDataTypeCode_kDLFloat,
+      } as usize,
+      bits: bits.parse::<u8>().unwrap() as usize,
+      lanes: match lanes {
+        Some(lanes) => lanes.1.parse::<u16>().unwrap() as usize,
+        None => 1,
+      },
+    })
   )
-}
+);
 
 // Converts a bytes to String.
-named! {
+named!(
     name<String>,
-    do_parse!(
-        len_l: le_u32 >>
-        len_h: le_u32 >>
-        data: take!(len_l) >>
-        (
-            if len_h == 0 {
-                String::from_utf8(data.to_vec()).unwrap()
-            } else {
-                panic!("Too long string")
-            }
-        )
-    )
-}
+    map_res!(length_bytes!(le_u64), |b: &[u8]| String::from_utf8(
+        b.to_vec()
+    ))
+);
 
 // Parses a TVMContext
-named! {
+named!(
   tvm_ctx<&[u8], TVMContext>,
   do_parse!(
     device_type: le_u32 >>
-    device_id:   le_i32 >>
-    (
-        TVMContext {
-            device_type: device_type as usize,
-            device_id: device_id as usize,
-        }
-    )
+    device_id: le_i32 >>
+    (TVMContext { device_type: device_type as usize, device_id: device_id as usize })
   )
-}
+);
 
 // Parses a DataType
-named! {
+named!(
   data_type<&[u8], DataType>,
   do_parse!(
-    code:  le_u8  >>
-    bits:  le_u8  >>
+    code: le_u8 >>
+    bits: le_u8 >>
     lanes: le_u16 >>
     (DataType { code: code as usize, bits: bits as usize, lanes: lanes as usize })
   )
-}
+);
 
 // Parses a Tensor from a TVM array file.
-named! {
+named!(
     tensor<Tensor>,
     do_parse!(
-                take!(8)      >>
-                le_u64        >>
-        ctx:    tvm_ctx       >>
-        ndim:   le_u32        >>
-        dtype:  data_type     >>
-        shape:  count!(map!(le_i64, |sz| sz as i64), ndim as usize) >>
-        length: le_i64        >>
-        data:   take!(length) >>
-        (
-            Tensor {
+        take!(8)
+            >> bits!(tag_bits!(u64, 64, 0))
+            >> ctx: tvm_ctx
+            >> ndim: le_u32
+            >> dtype: data_type
+            >> shape: count!(map!(le_i64, |sz| sz as i64), ndim as usize)
+            >> length: le_i64
+            >> data: take!(length)
+            >> (Tensor {
                 data: Storage::from(data),
                 ctx: ctx,
                 dtype: dtype,
@@ -444,29 +424,26 @@ named! {
                 shape: shape,
                 strides: None,
                 byte_offset: 0,
-            }
-        )
+            })
     )
-}
+);
 
 // Parses a graph params dict from a params binary file.
-named! {
+named!(
     parse_param_dict<HashMap<String, Tensor>>,
     do_parse!(
-                 take!(8)                      >>
-                 le_u64                        >>
-        names:   length_count!(le_u64, name)   >>
-        tensors: length_count!(le_u64, tensor) >>
-        (
-            HashMap::from_iter(names.into_iter().zip(tensors.into_iter()))
-        )
+        take!(8)
+            >> bits!(tag_bits!(u64, 64, 0))
+            >> names: length_count!(le_u64, name)
+            >> tensors: length_count!(le_u64, tensor)
+            >> (HashMap::from_iter(names.into_iter().zip(tensors.into_iter())))
     )
-}
+);
 
 /// Loads a param dict saved using `relay.save_param_dict`.
 pub fn load_param_dict(bytes: &[u8]) -> Result<HashMap<String, Tensor>, GraphFormatError> {
     if let Ok((remaining_bytes, param_dict)) = parse_param_dict(bytes) {
-        if remaining_bytes.is_empty() {
+        if remaining_bytes.len() == 0 {
             Ok(param_dict)
         } else {
             Err(GraphFormatError::Params)
@@ -483,7 +460,7 @@ mod tests {
     #[test]
     fn test_str_to_type() {
         assert_eq!(
-            tvm_str_to_type("float24").unwrap().1,
+            tvm_str_to_type(CompleteStr("float24")).unwrap().1,
             DataType {
                 code: DLDataTypeCode_kDLFloat as usize,
                 bits: 24,
@@ -491,7 +468,7 @@ mod tests {
             }
         );
         assert_eq!(
-            tvm_str_to_type("uint111x44").unwrap().1,
+            tvm_str_to_type(CompleteStr("uint111x44")).unwrap().1,
             DataType {
                 code: DLDataTypeCode_kDLUInt as usize,
                 bits: 111,

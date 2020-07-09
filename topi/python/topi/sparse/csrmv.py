@@ -17,7 +17,6 @@
 """TVM operator compute SpMV in CSR format."""
 from __future__ import absolute_import
 import tvm
-from tvm import te
 from .. import tag
 
 def csrmv_default(data, indices, indptr, weight, bias=None):
@@ -25,36 +24,36 @@ def csrmv_default(data, indices, indptr, weight, bias=None):
 
     Parameters
     ----------
-    data : tvm.te.Tensor
+    data : tvm.Tensor
         1-D with shape [nonzeros]
 
-    indices : tvm.te.Tensor
+    indices : tvm.Tensor
         1-D with shape [nonzeros]
 
-    indptr : tvm.te.Tensor
+    indptr : tvm.Tensor
         1-D with shape [m+1]
 
-    weight : tvm.te.Tensor
+    weight : tvm.Tensor
         2-D with shape [k, 1]
 
-    bias : tvm.te.Tensor, optional
+    bias : tvm.Tensor, optional
         1-D with shape [1]
 
     Returns
     -------
-    output : tvm.te.Tensor
+    output : tvm.Tensor
         2-D with shape [m, 1]
     """
     assert len(data.shape) == 1 and len(weight.shape) == 2, \
         "only support 2-dim csrmv"
-    assert isinstance(weight, te.tensor.Tensor), \
-        "weight matrix is assumed to be tvm.te.Tensor, but weight is `%s`" % (type(weight))
+    assert isinstance(weight, tvm.tensor.Tensor), \
+        "weight matrix is assumed to be tvm.Tensor, but weight is `%s`" % (type(weight))
     if bias is not None:
         assert len(bias.shape) == 1
     batch = indptr.shape[0]-1
     def csrmv_default_ir(data, indices, indptr, weight, out):
         """define ir for csrmv"""
-        irb = tvm.tir.ir_builder.create()
+        irb = tvm.ir_builder.create()
         data_ptr = irb.buffer_ptr(data)
         indices_ptr = irb.buffer_ptr(indices)
         indptr_ptr = irb.buffer_ptr(indptr)
@@ -74,12 +73,12 @@ def csrmv_default(data, indices, indptr, weight, bias=None):
             out_ptr[row] += dot[0]
         return irb.get()
     oshape = (batch, 1)
-    matmul = te.extern(oshape, [data, indices, indptr, weight],
-                       lambda ins, outs: csrmv_default_ir(ins[0], ins[1], ins[2], ins[3], outs[0]),
-                       tag="csrmv", dtype='float32', name='csrmv')
+    matmul = tvm.extern(oshape, [data, indices, indptr, weight],
+                        lambda ins, outs: csrmv_default_ir(ins[0], ins[1], ins[2], ins[3], outs[0]),
+                        tag="csrmv", dtype='float32', name='csrmv')
     if bias is not None:
-        matmul = te.compute((batch, 1), lambda i, j: matmul[i, 0] + bias[i], \
-                            tag=tag.BROADCAST)
+        matmul = tvm.compute((batch, 1), lambda i, j: matmul[i, 0] + bias[i], \
+                             tag=tag.BROADCAST)
     return matmul
 
 
@@ -88,19 +87,20 @@ def csrmv(a, x, y=None):
     where `x` and `y` are vectors, `A` is an m-by-k sparse matrix in the CSR format.
 
     Parameters
+
     ----------
     a : tvm.contrib.sparse.CSRNDArray
         2-D sparse matrix with shape [m, k]
 
-    x : tvm.te.Tensor
+    x : tvm.Tensor
         2-D dense matrix with shape [k, 1]
 
-    y : tvm.te.Tensor, optional
+    y : tvm.Tensor, optional
         1-D dense vector with shape [1]
 
     Returns
     -------
-    output : tvm.te.Tensor
+    output : tvm.Tensor
         2-D dense matrix with shape [m, 1]
     """
     return csrmv_default(a.data, a.indices, a.indptr, x, y)

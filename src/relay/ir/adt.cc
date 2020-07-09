@@ -18,125 +18,122 @@
  */
 
 /*!
- * \file src/ir/adt.cc
+ * \file src/tvm/ir/adt.cc
  * \brief AST nodes for Relay algebraic data types (ADTs).
  */
-#include <tvm/relay/adt.h>
 #include <tvm/relay/type.h>
+#include <tvm/relay/adt.h>
 
 namespace tvm {
 namespace relay {
 
-PatternWildcard::PatternWildcard() {
+PatternWildcard PatternWildcardNode::make() {
   ObjectPtr<PatternWildcardNode> n = make_object<PatternWildcardNode>();
-  data_ = std::move(n);
+  return PatternWildcard(n);
 }
 
 TVM_REGISTER_NODE_TYPE(PatternWildcardNode);
 
-TVM_REGISTER_GLOBAL("relay.ir.PatternWildcard").set_body_typed([]() { return PatternWildcard(); });
+TVM_REGISTER_GLOBAL("relay._make.PatternWildcard")
+.set_body_typed(PatternWildcardNode::make);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<PatternWildcardNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      p->stream << "PatternWildcardNode()";
-    });
+.set_dispatch<PatternWildcardNode>([](const ObjectRef& ref, ReprPrinter* p) {
+  p->stream << "PatternWildcardNode()";
+});
 
-PatternVar::PatternVar(tvm::relay::Var var) {
+PatternVar PatternVarNode::make(tvm::relay::Var var) {
   ObjectPtr<PatternVarNode> n = make_object<PatternVarNode>();
   n->var = std::move(var);
-  data_ = std::move(n);
+  return PatternVar(n);
 }
 
 TVM_REGISTER_NODE_TYPE(PatternVarNode);
 
-TVM_REGISTER_GLOBAL("relay.ir.PatternVar").set_body_typed([](tvm::relay::Var var) {
-  return PatternVar(var);
-});
+TVM_REGISTER_GLOBAL("relay._make.PatternVar")
+.set_body_typed(PatternVarNode::make);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<PatternVarNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const PatternVarNode*>(ref.get());
-      p->stream << "PatternVarNode(" << node->var << ")";
-    });
+.set_dispatch<PatternVarNode>([](const ObjectRef& ref, ReprPrinter* p) {
+  auto* node = static_cast<const PatternVarNode*>(ref.get());
+  p->stream << "PatternVarNode(" << node->var << ")";
+});
 
-PatternConstructor::PatternConstructor(Constructor constructor, tvm::Array<Pattern> patterns) {
+PatternConstructor PatternConstructorNode::make(Constructor constructor,
+                                                tvm::Array<Pattern> patterns) {
   ObjectPtr<PatternConstructorNode> n = make_object<PatternConstructorNode>();
   n->constructor = std::move(constructor);
   n->patterns = std::move(patterns);
-  data_ = std::move(n);
+  return PatternConstructor(n);
 }
 
 TVM_REGISTER_NODE_TYPE(PatternConstructorNode);
 
-TVM_REGISTER_GLOBAL("relay.ir.PatternConstructor")
-    .set_body_typed([](Constructor constructor, tvm::Array<Pattern> patterns) {
-      return PatternConstructor(constructor, patterns);
-    });
+TVM_REGISTER_GLOBAL("relay._make.PatternConstructor")
+.set_body_typed(PatternConstructorNode::make);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<PatternConstructorNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const PatternConstructorNode*>(ref.get());
-      p->stream << "PatternConstructorNode(" << node->constructor << ", " << node->patterns << ")";
-    });
+.set_dispatch<PatternConstructorNode>([](const ObjectRef& ref, ReprPrinter* p) {
+  auto* node = static_cast<const PatternConstructorNode*>(ref.get());
+  p->stream << "PatternConstructorNode(" << node->constructor
+            << ", " << node->patterns << ")";
+});
 
-PatternTuple::PatternTuple(tvm::Array<Pattern> patterns) {
+PatternTuple PatternTupleNode::make(tvm::Array<Pattern> patterns) {
   ObjectPtr<PatternTupleNode> n = make_object<PatternTupleNode>();
   n->patterns = std::move(patterns);
-  data_ = std::move(n);
+  return PatternTuple(n);
 }
 
 TVM_REGISTER_NODE_TYPE(PatternTupleNode);
 
-TVM_REGISTER_GLOBAL("relay.ir.PatternTuple").set_body_typed([](tvm::Array<Pattern> patterns) {
-  return PatternTuple(patterns);
-});
+TVM_REGISTER_GLOBAL("relay._make.PatternTuple")
+.set_body_typed(PatternTupleNode::make);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<PatternTupleNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const PatternTupleNode*>(ref.get());
-      p->stream << "PatternTupleNode(" << node->patterns << ")";
-    });
+.set_dispatch<PatternTupleNode>([](const ObjectRef& ref, ReprPrinter* p) {
+  auto* node = static_cast<const PatternTupleNode*>(ref.get());
+  p->stream << "PatternTupleNode(" << node->patterns << ")";
+});
 
-Clause::Clause(Pattern lhs, Expr rhs) {
+Clause ClauseNode::make(Pattern lhs, Expr rhs) {
   ObjectPtr<ClauseNode> n = make_object<ClauseNode>();
   n->lhs = std::move(lhs);
   n->rhs = std::move(rhs);
-  data_ = std::move(n);
+  return Clause(n);
 }
 
 TVM_REGISTER_NODE_TYPE(ClauseNode);
 
-TVM_REGISTER_GLOBAL("relay.ir.Clause").set_body_typed([](Pattern lhs, Expr rhs) {
-  return Clause(lhs, rhs);
-});
+TVM_REGISTER_GLOBAL("relay._make.Clause")
+.set_body_typed(ClauseNode::make);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<ClauseNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const ClauseNode*>(ref.get());
-      p->stream << "ClauseNode(" << node->lhs << ", " << node->rhs << ")";
-    });
+.set_dispatch<ClauseNode>([](const ObjectRef& ref, ReprPrinter* p) {
+    auto* node = static_cast<const ClauseNode*>(ref.get());
+  p->stream << "ClauseNode(" << node->lhs << ", "
+            << node->rhs << ")";
+  });
 
-Match::Match(Expr data, tvm::Array<Clause> clauses, bool complete) {
+Match MatchNode::make(Expr data, tvm::Array<Clause> clauses, bool complete) {
   ObjectPtr<MatchNode> n = make_object<MatchNode>();
   n->data = std::move(data);
   n->clauses = std::move(clauses);
   n->complete = complete;
-  data_ = std::move(n);
+  return Match(n);
 }
 
 TVM_REGISTER_NODE_TYPE(MatchNode);
 
-TVM_REGISTER_GLOBAL("relay.ir.Match")
-    .set_body_typed([](Expr data, tvm::Array<Clause> clauses, bool complete) {
-      return Match(data, clauses, complete);
-    });
+TVM_REGISTER_GLOBAL("relay._make.Match")
+.set_body_typed(MatchNode::make);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<MatchNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const MatchNode*>(ref.get());
-      p->stream << "MatchNode(" << node->data << ", " << node->clauses << ", " << node->complete
-                << ")";
-    });
+.set_dispatch<MatchNode>([](const ObjectRef& ref, ReprPrinter* p) {
+  auto* node = static_cast<const MatchNode*>(ref.get());
+  p->stream << "MatchNode(" << node->data << ", "
+            << node->clauses << ", " << node->complete << ")";
+});
 
 }  // namespace relay
 }  // namespace tvm

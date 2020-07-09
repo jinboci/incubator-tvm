@@ -18,12 +18,11 @@ import numpy as np
 import pytest
 
 import tvm
-from tvm import te
 from tvm import relay
 from tvm.relay import transform
 
 def test_basic():
-    mod = tvm.IRModule()
+    mod = relay.Module()
     x2 = relay.var('x2', shape=(10, 5))
     y2 = relay.var('y2', shape=(1, 5))
     level2_func = relay.Function([x2, y2], relay.op.add(x2, y2))
@@ -37,7 +36,7 @@ def test_basic():
     assert len(new_mod.functions) == 2
 
 def test_closure():
-    mod = tvm.IRModule()
+    mod = relay.Module()
 
     x = relay.var('x', shape=(2,))
     y = relay.var('y', shape=(2,))
@@ -48,9 +47,9 @@ def test_closure():
 
     new_mod = transform.LambdaLift()(mod)
     assert len(new_mod.functions) == 3
-
+    
 def test_recursive():
-    mod = tvm.IRModule()
+    mod = relay.Module()
 
     x = relay.var('x', shape=(2,))
     i = relay.var('i', shape=(), dtype='int32')

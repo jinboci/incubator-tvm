@@ -17,6 +17,9 @@
  * under the License.
  */
 
+#[cfg(target_env = "sgx")]
+use alloc::alloc::{self, Layout, LayoutErr};
+#[cfg(not(target_env = "sgx"))]
 use std::alloc::{self, Layout, LayoutErr};
 
 const DEFAULT_ALIGN_BYTES: usize = 4;
@@ -32,11 +35,14 @@ impl Allocation {
     pub fn new(size: usize, align: Option<usize>) -> Result<Self, LayoutErr> {
         let alignment = align.unwrap_or(DEFAULT_ALIGN_BYTES);
         let layout = Layout::from_size_align(size, alignment)?;
-        let ptr = unsafe { alloc::alloc(layout) };
+        let ptr = unsafe { alloc::alloc(layout.clone()) };
         if ptr.is_null() {
             alloc::handle_alloc_error(layout);
         }
-        Ok(Self { ptr, layout })
+        Ok(Self {
+            ptr: ptr,
+            layout: layout,
+        })
     }
 
     pub fn as_mut_ptr(&self) -> *mut u8 {
@@ -52,22 +58,12 @@ impl Allocation {
     pub fn align(&self) -> usize {
         self.layout.align()
     }
-
-    /// Returns a view of the Allocation.
-    pub fn as_slice(&self) -> &[u8] {
-        unsafe { std::slice::from_raw_parts(self.as_mut_ptr(), self.size()) }
-    }
-
-    /// Returns a mutable view of the Allocation.
-    pub fn as_mut_slice(&mut self) -> &mut [u8] {
-        unsafe { std::slice::from_raw_parts_mut(self.as_mut_ptr(), self.size()) }
-    }
 }
 
 impl Drop for Allocation {
     fn drop(&mut self) {
         unsafe {
-            alloc::dealloc(self.ptr, self.layout);
+            alloc::dealloc(self.ptr, self.layout.clone());
         }
     }
 }

@@ -18,43 +18,8 @@
 """TVM operator input resize compute."""
 from __future__ import absolute_import
 import tvm
-from tvm import te
-from topi.util import nchw_pack_layout, nchw_xc_layout
 from .. import tag
 
-def get_2d_indices(indices, layout='NCHW'):
-    """ Get 2d indices """
-    (cc, inum, ic) = (0, 0, 0)
-    if layout == 'NHWC':
-        n, y, x, c = indices
-        cc = None
-    elif layout == 'NCHW':
-        n, c, y, x = indices
-        cc = None
-    elif nchw_pack_layout(layout):
-        n, c, y, x, inum, ic = indices
-    else:
-        # else must be NCHWxc
-        assert nchw_xc_layout(layout)
-        n, c, y, x, cc = indices
-
-    return n, c, y, x, cc, inum, ic
-
-def get_2d_pixel(data, layout, boxes, image_height, image_width, n, c, y, x, cc, ib, ic):
-    """ Get 2d pixel """
-    if boxes is None:
-        y = tvm.te.max(tvm.te.min(y, image_height - 1), 0)
-        x = tvm.te.max(tvm.te.min(x, image_width - 1), 0)
-    if layout == 'NHWC':
-        return data(n, y, x, c).astype('float')
-    if layout == 'NCHW':
-        return data(n, c, y, x).astype('float')
-    if nchw_pack_layout(layout):
-        return data(n, c, y, x, ib, ic).astype('float')
-
-    # else must be NCHWxc
-    assert nchw_xc_layout(layout)
-    return data(n, c, y, x, cc).astype('float')
 
 def resize_nearest_neighbor(indices, data, image_height, image_width,
                             target_height, target_width, boxes=None,
@@ -71,7 +36,7 @@ def resize_nearest_neighbor(indices, data, image_height, image_width,
     indices : tuple
         The indices of input data
 
-    data : tvm.te.Tensor
+    data : tvm.Tensor
         inputs is a 4-D tensor with shape
         [batch, channel, in_height, in_width]
         or  [batch, in_height, in_width, channel]
@@ -88,11 +53,11 @@ def resize_nearest_neighbor(indices, data, image_height, image_width,
     target_width : integer
         The target resized image width
 
-    boxes : tvm.te.Tensor, optional
+    boxes : tvm.Tensor, optional
         A 2-D tensor of shape [num_boxes, 4]. Each row of the tensor specifies
         the coordinates of a box.
 
-    box_indices : tvm.te.Tensor, optional
+    box_indices : tvm.Tensor, optional
         A 1-D tensor of shape [num_boxes], box_indices[i] specifies the data that
         the i-th box refers to.
 
@@ -124,7 +89,29 @@ def resize_nearest_neighbor(indices, data, image_height, image_width,
             dtype = data_dtype
         return value.astype(dtype)
 
-    n, c, y, x, cc, inum, ic = get_2d_indices(indices, layout)
+    def _get_indices(indices, layout='NCHW'):
+        if layout == 'NHWC':
+            n, y, x, c = indices
+            cc = None
+        elif layout == 'NCHW':
+            n, c, y, x = indices
+            cc = None
+        else:
+            n, c, y, x, cc = indices
+        return n, c, y, x, cc
+
+    def _get_pixel(data, layout, n, c, y, x, cc):
+        if boxes is None:
+            y = tvm.max(tvm.min(y, image_height - 1), 0)
+            x = tvm.max(tvm.min(x, image_width - 1), 0)
+        if layout == 'NHWC':
+            return data(n, y, x, c).astype('float')
+        if layout == 'NCHW':
+            return data(n, c, y, x).astype('float')
+        # else must be NCHWxc
+        return data(n, c, y, x, cc).astype('float')
+
+    n, c, y, x, cc = _get_indices(indices, layout)
     box_idx = box_indices(n) if box_indices is not None else n
     if boxes is not None:
         y1, x1 = boxes(n, 0), boxes(n, 1)
@@ -151,29 +138,28 @@ def resize_nearest_neighbor(indices, data, image_height, image_width,
         in_x = w_scale * x
 
     if coordinate_transformation_mode == "align_corners" or boxes is not None:
-        closest_x_index = te.round(in_x).astype("int32")
-        closest_y_index = te.round(in_y).astype("int32")
+        closest_x_index = tvm.round(in_x).astype("int32")
+        closest_y_index = tvm.round(in_y).astype("int32")
     else:
         # Add epsilon to floor to prevent gpu rounding errors.
         epsilon = 1e-5
-        closest_y_index = te.floor(in_y + epsilon).astype('int32')
-        closest_x_index = te.floor(in_x + epsilon).astype('int32')
+        closest_y_index = tvm.floor(in_y + epsilon).astype('int32')
+        closest_x_index = tvm.floor(in_x + epsilon).astype('int32')
 
-    value = get_2d_pixel(data, layout, boxes, image_height, image_width,
-                         box_idx, c, closest_y_index, closest_x_index, cc, inum, ic)
+    value = _get_pixel(data, layout, box_idx, c, closest_y_index, closest_x_index, cc)
 
     if extrapolation_value is not None:
-        out = tvm.tir.if_then_else(in_y < 0,
-                                   extrapolation_value,
-                                   tvm.tir.if_then_else(in_y > image_height - 1,
-                                                        extrapolation_value,
-                                                        value))
+        out = tvm.if_then_else(in_y < 0,
+                               extrapolation_value,
+                               tvm.if_then_else(in_y > image_height - 1,
+                                                extrapolation_value,
+                                                value))
         # use extrapolation_value if in_x is out of boundary
-        value = tvm.tir.if_then_else(in_x < 0,
-                                     extrapolation_value,
-                                     tvm.tir.if_then_else(in_x > image_width - 1,
-                                                          extrapolation_value,
-                                                          out))
+        value = tvm.if_then_else(in_x < 0,
+                                 extrapolation_value,
+                                 tvm.if_then_else(in_x > image_width - 1,
+                                                  extrapolation_value,
+                                                  out))
     return _cast_output(value, data.dtype, out_dtype=out_dtype)
 
 
@@ -192,7 +178,7 @@ def resize_bilinear(indices, data, image_height, image_width,
     indices : tuple
         The indices of input data
 
-    data : tvm.te.Tensor
+    data : tvm.Tensor
         inputs is a 4-D tensor with shape
         [batch, channel, in_height, in_width]
         or  [batch, in_height, in_width, channel]
@@ -209,11 +195,11 @@ def resize_bilinear(indices, data, image_height, image_width,
     target_width : integer
         The target resized image width
 
-    boxes : tvm.te.Tensor, optional
+    boxes : tvm.Tensor, optional
         A 2-D tensor of shape [num_boxes, 4]. Each row of the tensor specifies
         the coordinates of a box.
 
-    box_indices : tvm.te.Tensor, optional
+    box_indices : tvm.Tensor, optional
         A 1-D tensor of shape [num_boxes], box_indices[i] specifies the data that
         the i-th box refers to.
 
@@ -248,7 +234,29 @@ def resize_bilinear(indices, data, image_height, image_width,
     def _lerp(A, B, t):
         return A * (1.0 - t) + B * t
 
-    n, c, y, x, cc, inum, ic = get_2d_indices(indices, layout=layout)
+    def _get_indices(indices, layout='NCHW'):
+        if layout == 'NHWC':
+            n, y, x, c = indices
+            cc = None
+        elif layout == 'NCHW':
+            n, c, y, x = indices
+            cc = None
+        else:
+            n, c, y, x, cc = indices
+        return n, c, y, x, cc
+
+    def _get_pixel(data, layout, n, c, y, x, cc):
+        if boxes is None:
+            y = tvm.max(tvm.min(y, image_height - 1), 0)
+            x = tvm.max(tvm.min(x, image_width - 1), 0)
+        if layout == 'NHWC':
+            return data(n, y, x, c).astype('float')
+        if layout == 'NCHW':
+            return data(n, c, y, x).astype('float')
+        # else must be NCHWxc
+        return data(n, c, y, x, cc).astype('float')
+
+    n, c, y, x, cc = _get_indices(indices, layout=layout)
     box_idx = box_indices(n) if box_indices is not None else n
 
     if boxes is not None:
@@ -280,22 +288,18 @@ def resize_bilinear(indices, data, image_height, image_width,
             in_y = h_scale * y
             in_x = w_scale * x
 
-    top_y_index = te.floor(in_y).astype('int32')
-    bottom_y_index = te.ceil(in_y).astype('int32')
+    top_y_index = tvm.floor(in_y).astype('int32')
+    bottom_y_index = tvm.ceil(in_y).astype('int32')
     y_lerp = in_y - top_y_index
 
-    left_x_index = te.floor(in_x).astype('int32')
-    right_x_index = te.ceil(in_x).astype('int32')
+    left_x_index = tvm.floor(in_x).astype('int32')
+    right_x_index = tvm.ceil(in_x).astype('int32')
     x_lerp = in_x - left_x_index
 
-    top_left = get_2d_pixel(data, layout, boxes, image_height, image_width,
-                            box_idx, c, top_y_index, left_x_index, cc, inum, ic)
-    top_right = get_2d_pixel(data, layout, boxes, image_height, image_width,
-                             box_idx, c, top_y_index, right_x_index, cc, inum, ic)
-    bottom_left = get_2d_pixel(data, layout, boxes, image_height, image_width,
-                               box_idx, c, bottom_y_index, left_x_index, cc, inum, ic)
-    bottom_right = get_2d_pixel(data, layout, boxes, image_height, image_width,
-                                box_idx, c, bottom_y_index, right_x_index, cc, inum, ic)
+    top_left = _get_pixel(data, layout, box_idx, c, top_y_index, left_x_index, cc)
+    top_right = _get_pixel(data, layout, box_idx, c, top_y_index, right_x_index, cc)
+    bottom_left = _get_pixel(data, layout, box_idx, c, bottom_y_index, left_x_index, cc)
+    bottom_right = _get_pixel(data, layout, box_idx, c, bottom_y_index, right_x_index, cc)
 
     top = _lerp(top_left, top_right, x_lerp)
     bottom = _lerp(bottom_left, bottom_right, x_lerp)
@@ -303,16 +307,16 @@ def resize_bilinear(indices, data, image_height, image_width,
 
     # use extrapolation_value if in_y/in_x is out of boundary
     if extrapolation_value is not None:
-        out = tvm.tir.if_then_else(in_y < 0,
-                                   extrapolation_value,
-                                   tvm.tir.if_then_else(in_y > image_height - 1,
-                                                        extrapolation_value,
-                                                        value))
-        value = tvm.tir.if_then_else(in_x < 0,
-                                     extrapolation_value,
-                                     tvm.tir.if_then_else(in_x > image_width - 1,
-                                                          extrapolation_value,
-                                                          out))
+        out = tvm.if_then_else(in_y < 0,
+                               extrapolation_value,
+                               tvm.if_then_else(in_y > image_height - 1,
+                                                extrapolation_value,
+                                                value))
+        value = tvm.if_then_else(in_x < 0,
+                                 extrapolation_value,
+                                 tvm.if_then_else(in_x > image_width - 1,
+                                                  extrapolation_value,
+                                                  out))
     return _cast_output(value, data.dtype, out_dtype=out_dtype)
 
 
@@ -330,7 +334,7 @@ def resize_bicubic(indices, data, image_height, image_width,
     indices : tuple
         The indices of input data
 
-    data : tvm.te.Tensor
+    data : tvm.Tensor
         inputs is a 4-D tensor with shape
         [batch, channel, in_height, in_width]
         or  [batch, in_height, in_width, channel]
@@ -347,11 +351,11 @@ def resize_bicubic(indices, data, image_height, image_width,
     target_width : integer
         The target resized image width
 
-    boxes : tvm.te.Tensor, optional
+    boxes : tvm.Tensor, optional
         A 2-D tensor of shape [num_boxes, 4]. Each row of the tensor specifies
         the coordinates of a box.
 
-    box_indices : tvm.te.Tensor, optional
+    box_indices : tvm.Tensor, optional
         A 1-D tensor of shape [num_boxes], box_indices[i] specifies the data that
         the i-th box refers to.
 
@@ -390,7 +394,29 @@ def resize_bicubic(indices, data, image_height, image_width,
             dtype = data_dtype
         return value.astype(dtype)
 
-    n, c, y, x, cc, inum, ic = get_2d_indices(indices, layout)
+    def _get_indices(indices, layout='NCHW'):
+        if layout == 'NHWC':
+            n, y, x, c = indices
+            cc = None
+        elif layout == 'NCHW':
+            n, c, y, x = indices
+            cc = None
+        else:
+            n, c, y, x, cc = indices
+        return n, c, y, x, cc
+
+    def _get_pixel(data, layout, n, c, y, x, cc):
+        if boxes is None:
+            y = tvm.max(tvm.min(y, image_height - 1), 0)
+            x = tvm.max(tvm.min(x, image_width - 1), 0)
+        if layout == 'NHWC':
+            return data(n, y, x, c).astype('float')
+        if layout == 'NCHW':
+            return data(n, c, y, x).astype('float')
+        # else must be NCHWxc
+        return data(n, c, y, x, cc).astype('float')
+
+    n, c, y, x, cc = _get_indices(indices, layout)
     box_idx = box_indices(n) if box_indices is not None else n
 
     if boxes is not None:
@@ -422,51 +448,35 @@ def resize_bicubic(indices, data, image_height, image_width,
             in_y = h_scale * y
             in_x = w_scale * x
 
-    xint = te.floor(in_x).astype('int32')
-    xfract = in_x - te.floor(in_x)
+    xint = tvm.floor(in_x).astype('int32')
+    xfract = in_x - tvm.floor(in_x)
 
-    yint = te.floor(in_y).astype('int32')
-    yfract = in_y - te.floor(in_y)
+    yint = tvm.floor(in_y).astype('int32')
+    yfract = in_y - tvm.floor(in_y)
 
     # 1st row
-    p00 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint - 1, xint - 1, cc, inum, ic)
-    p10 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint - 1, xint + 0, cc, inum, ic)
-    p20 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint - 1, xint + 1, cc, inum, ic)
-    p30 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint - 1, xint + 2, cc, inum, ic)
+    p00 = _get_pixel(data, layout, box_idx, c, yint - 1, xint - 1, cc)
+    p10 = _get_pixel(data, layout, box_idx, c, yint - 1, xint + 0, cc)
+    p20 = _get_pixel(data, layout, box_idx, c, yint - 1, xint + 1, cc)
+    p30 = _get_pixel(data, layout, box_idx, c, yint - 1, xint + 2, cc)
 
     # 2nd row
-    p01 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint + 0, xint - 1, cc, inum, ic)
-    p11 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint + 0, xint + 0, cc, inum, ic)
-    p21 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint + 0, xint + 1, cc, inum, ic)
-    p31 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint + 0, xint + 2, cc, inum, ic)
+    p01 = _get_pixel(data, layout, box_idx, c, yint + 0, xint - 1, cc)
+    p11 = _get_pixel(data, layout, box_idx, c, yint + 0, xint + 0, cc)
+    p21 = _get_pixel(data, layout, box_idx, c, yint + 0, xint + 1, cc)
+    p31 = _get_pixel(data, layout, box_idx, c, yint + 0, xint + 2, cc)
 
     # 3rd row
-    p02 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint + 1, xint - 1, cc, inum, ic)
-    p12 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint + 1, xint + 0, cc, inum, ic)
-    p22 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint + 1, xint + 1, cc, inum, ic)
-    p32 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint + 1, xint + 2, cc, inum, ic)
+    p02 = _get_pixel(data, layout, box_idx, c, yint + 1, xint - 1, cc)
+    p12 = _get_pixel(data, layout, box_idx, c, yint + 1, xint + 0, cc)
+    p22 = _get_pixel(data, layout, box_idx, c, yint + 1, xint + 1, cc)
+    p32 = _get_pixel(data, layout, box_idx, c, yint + 1, xint + 2, cc)
 
     # 4th row
-    p03 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint + 2, xint - 1, cc, inum, ic)
-    p13 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint + 2, xint + 0, cc, inum, ic)
-    p23 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint + 2, xint + 1, cc, inum, ic)
-    p33 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint + 2, xint + 2, cc, inum, ic)
+    p03 = _get_pixel(data, layout, box_idx, c, yint + 2, xint - 1, cc)
+    p13 = _get_pixel(data, layout, box_idx, c, yint + 2, xint + 0, cc)
+    p23 = _get_pixel(data, layout, box_idx, c, yint + 2, xint + 1, cc)
+    p33 = _get_pixel(data, layout, box_idx, c, yint + 2, xint + 2, cc)
 
     # Interpolate bicubically
     col0 = _cubic_kernel(p00, p10, p20, p30, xfract)
@@ -477,16 +487,16 @@ def resize_bicubic(indices, data, image_height, image_width,
 
     # use extrapolation_value if in_y/in_x is out of boundary
     if extrapolation_value is not None:
-        out = tvm.tir.if_then_else(in_y < 0,
-                                   extrapolation_value,
-                                   tvm.tir.if_then_else(in_y > image_height - 1,
-                                                        extrapolation_value,
-                                                        value))
-        value = tvm.tir.if_then_else(in_x < 0,
-                                     extrapolation_value,
-                                     tvm.tir.if_then_else(in_x > image_width - 1,
-                                                          extrapolation_value,
-                                                          out))
+        out = tvm.if_then_else(in_y < 0,
+                               extrapolation_value,
+                               tvm.if_then_else(in_y > image_height - 1,
+                                                extrapolation_value,
+                                                value))
+        value = tvm.if_then_else(in_x < 0,
+                                 extrapolation_value,
+                                 tvm.if_then_else(in_x > image_width - 1,
+                                                  extrapolation_value,
+                                                  out))
     return _cast_output(value, data.dtype, out_dtype=out_dtype)
 
 
@@ -496,7 +506,7 @@ def resize(data, size, layout="NCHW", method="bilinear",
 
     Parameters
     ----------
-    data : tvm.te.Tensor
+    data : tvm.Tensor
         inputs is a 4-D tensor with shape
         [batch, channel, in_height, in_width]
         or  [batch, in_height, in_width, channel]
@@ -521,12 +531,11 @@ def resize(data, size, layout="NCHW", method="bilinear",
 
     Returns
     -------
-    output : tvm.te.Tensor
+    output : tvm.Tensor
         4-D with shape [batch, channel, in_height*scale, in_width*scale]
         or [batch, in_height*scale, in_width*scale, channel]
         or 5-D with shape [batch, channel-major, in_height*scale, in_width*scale, channel-minor]
     """
-
     method = method.lower()
 
     if layout == 'NHWC':
@@ -535,10 +544,7 @@ def resize(data, size, layout="NCHW", method="bilinear",
     elif layout == 'NCHW':
         in_n, in_c, in_h, in_w = data.shape
         output_shape = [in_n, in_c, size[0], size[1]]
-    elif nchw_pack_layout(layout):# for NCHWinic
-        in_n, in_c, in_h, in_w, in_inum, in_ic = data.shape
-        output_shape = [in_n, in_c, size[0], size[1], in_inum, in_ic]
-    elif nchw_xc_layout(layout):# for NCHWxc
+    elif layout.startswith("NCHW"):# for NCHWxc
         in_n, in_c, in_h, in_w, in_cc = data.shape
         output_shape = [in_n, in_c, size[0], size[1], in_cc]
     else:
@@ -549,21 +555,21 @@ def resize(data, size, layout="NCHW", method="bilinear",
         return resize_nearest_neighbor(indices, data, in_h, in_w,
                                        size[0], size[1], layout=layout,
                                        coordinate_transformation_mode= \
-                                       coordinate_transformation_mode,
+                                           coordinate_transformation_mode,
                                        out_dtype=out_dtype)
 
     def _bilinear(*indices):
         return resize_bilinear(indices, data, in_h, in_w,
                                size[0], size[1], layout=layout,
                                coordinate_transformation_mode= \
-                               coordinate_transformation_mode,
+                                   coordinate_transformation_mode,
                                out_dtype=out_dtype)
 
     def _bicubic(*indices):
         return resize_bicubic(indices, data, in_h, in_w,
                               size[0], size[1], layout,
                               coordinate_transformation_mode= \
-                              coordinate_transformation_mode,
+                                  coordinate_transformation_mode,
                               out_dtype=out_dtype)
 
     # Determine which interpolation method to use then run it.
@@ -576,7 +582,7 @@ def resize(data, size, layout="NCHW", method="bilinear",
     else:
         raise ValueError('%s method is not supported.' % method)
 
-    return te.compute(output_shape, compute_func, name='resize', tag=tag.INJECTIVE)
+    return tvm.compute(output_shape, compute_func, name='resize', tag=tag.INJECTIVE)
 
 
 def crop_and_resize(data, boxes, box_indices, crop_size, layout="NCHW",
@@ -585,16 +591,16 @@ def crop_and_resize(data, boxes, box_indices, crop_size, layout="NCHW",
 
     Parameters
     ----------
-    data : tvm.te.Tensor
+    data : tvm.Tensor
         inputs is a 4-D tensor with shape
         [batch, channel, in_height, in_width]
         or  [batch, in_height, in_width, channel]
 
-    boxes : tvm.te.Tensor
+    boxes : tvm.Tensor
         A 2-D tensor of shape [num_boxes, 4]. Each row of the tensor specifies
         the coordinates of a box.
 
-    box_indices : tvm.te.Tensor
+    box_indices : tvm.Tensor
         A 1-D tensor of shape [num_boxes], box_indices[i] specifies the data that
         the i-th box refers to.
 
@@ -615,7 +621,7 @@ def crop_and_resize(data, boxes, box_indices, crop_size, layout="NCHW",
 
     Returns
     -------
-    output : tvm.te.Tensor
+    output : tvm.Tensor
         4-D with shape [num_boxes, channel, crop_height, crop_width]
         or [num_boxes, crop_height, crop_width, channel]
     """
@@ -657,7 +663,7 @@ def crop_and_resize(data, boxes, box_indices, crop_size, layout="NCHW",
     else:
         raise ValueError('%s method is not supported.' % method)
 
-    return te.compute(output_shape, compute_func, name='crop_and_resize', tag=tag.INJECTIVE)
+    return tvm.compute(output_shape, compute_func, name='crop_and_resize', tag=tag.INJECTIVE)
 
 
 
@@ -666,7 +672,7 @@ def resize3d(data, size, layout="NCDHW", method="nearest_neighbor",
     """Perform resize operation on the data.
     Parameters
     ----------
-    inputs: tvm.te.Tensor
+    inputs: tvm.Tensor
         inputs is a 5-D tensor with shape
         [batch, channel, in_depth, in_height, in_width]
         or  [batch, in_depth, in_height, in_width, channel]
@@ -685,7 +691,7 @@ def resize3d(data, size, layout="NCDHW", method="nearest_neighbor",
         Type to return. If left None will be same as input type.
     Returns
     -------
-    output : tvm.te.Tensor
+    output : tvm.Tensor
         5-D with shape [batch, channel, in_depth*scale, in_height*scale, in_width*scale]
         or [batch, in_depth*scale, in_height*scale, in_width*scale, channel]
         or 5-D with shape [batch, channel-major, in_depth*scale, in_height*scale, in_width*scale,
@@ -717,9 +723,9 @@ def resize3d(data, size, layout="NCDHW", method="nearest_neighbor",
             coordinate_transformation_mode))
 
     def _get_pixel(n, c, z, y, x, cc):
-        z = tvm.te.max(tvm.te.min(z, in_d - 1), 0)
-        y = tvm.te.max(tvm.te.min(y, in_h - 1), 0)
-        x = tvm.te.max(tvm.te.min(x, in_w - 1), 0)
+        z = tvm.max(tvm.min(z, in_d - 1), 0)
+        y = tvm.max(tvm.min(y, in_h - 1), 0)
+        x = tvm.max(tvm.min(x, in_w - 1), 0)
         if layout == 'NDHWC':
             return data(n, z, y, x, c).astype('float')
         if layout == 'NCDHW':
@@ -755,15 +761,15 @@ def resize3d(data, size, layout="NCDHW", method="nearest_neighbor",
         in_x = x_ratio * x
 
         if coordinate_transformation_mode == "align_corners":
-            zint = te.round(in_z).astype('int32')
-            yint = te.round(in_y).astype('int32')
-            xint = te.round(in_x).astype('int32')
+            zint = tvm.round(in_z).astype('int32')
+            yint = tvm.round(in_y).astype('int32')
+            xint = tvm.round(in_x).astype('int32')
         elif coordinate_transformation_mode in ["asymmetric", "half_pixel"]:
             # Add epsilon to floor to prevent gpu rounding errors.
             epsilon = 1e-5
-            zint = te.floor(in_z + epsilon).astype('int32')
-            yint = te.floor(in_y + epsilon).astype('int32')
-            xint = te.floor(in_x + epsilon).astype('int32')
+            zint = tvm.floor(in_z + epsilon).astype('int32')
+            yint = tvm.floor(in_y + epsilon).astype('int32')
+            xint = tvm.floor(in_x + epsilon).astype('int32')
         else:
             raise ValueError("Unsupported coordinate_transformation_mode: {}".format(
                 coordinate_transformation_mode))
@@ -786,14 +792,14 @@ def resize3d(data, size, layout="NCDHW", method="nearest_neighbor",
             in_y = y_ratio * y
             in_x = x_ratio * x
 
-        zint = te.floor(in_z).astype('int32')
-        zfract = in_z - te.floor(in_z)
+        zint = tvm.floor(in_z).astype('int32')
+        zfract = in_z - tvm.floor(in_z)
 
-        xint = te.floor(in_x).astype('int32')
-        xfract = in_x - te.floor(in_x)
+        xint = tvm.floor(in_x).astype('int32')
+        xfract = in_x - tvm.floor(in_x)
 
-        yint = te.floor(in_y).astype('int32')
-        yfract = in_y - te.floor(in_y)
+        yint = tvm.floor(in_y).astype('int32')
+        yfract = in_y - tvm.floor(in_y)
 
         p000 = _get_pixel(n, c, zint, yint, xint, cc)
         p001 = _get_pixel(n, c, zint, yint, xint + 1, cc)
@@ -821,4 +827,4 @@ def resize3d(data, size, layout="NCDHW", method="nearest_neighbor",
     else:
         raise ValueError('%s method is not supported.' % method)
 
-    return te.compute(output_shape, compute_func, name='resize3d', tag=tag.INJECTIVE)
+    return tvm.compute(output_shape, compute_func, name='resize3d', tag=tag.INJECTIVE)

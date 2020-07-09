@@ -16,10 +16,13 @@
 # under the License.
 # pylint: disable=invalid-name, unused-variable, unused-argument
 """Schedule for binary dense operator."""
-from tvm import te
+from __future__ import absolute_import as _abs
+import tvm
 from .. import tag
+from .. import generic
 
 
+@generic.schedule_binary_dense.register(["cpu"])
 def schedule_binary_dense(outs):
     """Schedule for binary_dense.
 
@@ -34,8 +37,8 @@ def schedule_binary_dense(outs):
     s: Schedule
         The computation schedule for binary_dense.
     """
-    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
-    s = te.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    s = tvm.create_schedule([x.op for x in outs])
     scheduled_ops = []
 
     def _schedule(A, B, C):
@@ -55,7 +58,7 @@ def schedule_binary_dense(outs):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if isinstance(tensor.op, te.tensor.ComputeOp) and tensor.op not in scheduled_ops:
+                if isinstance(tensor.op, tvm.tensor.ComputeOp) and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         # schedule binary_dense
         elif OP.tag == 'binary_dense':

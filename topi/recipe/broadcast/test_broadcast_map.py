@@ -16,7 +16,6 @@
 # under the License.
 import os
 import tvm
-from tvm import te
 from tvm.contrib import nvcc
 import numpy as np
 
@@ -53,7 +52,7 @@ def test_broadcast_to(in_shape, out_shape):
     TASK = "bcast_to_i" + "_".join([str(ele) for ele in in_shape])\
            + "o" + "_".join([str(ele) for ele in out_shape])
     # Build the logic and compile the function
-    A = te.placeholder(shape=in_shape, name="A")
+    A = tvm.placeholder(shape=in_shape, name="A")
     B = topi.broadcast_to(A, out_shape)
     s = topi.cuda.schedule_broadcast(B)
     fcuda = tvm.build(s, [A, B], "cuda", name="broadcast_to")
@@ -73,8 +72,8 @@ def test_broadcast_binary_op(lhs_shape, rhs_shape, typ="add"):
     TASK = "bcast_binary_" + typ + "_lhs" +\
            "_".join([str(ele) for ele in lhs_shape]) +\
            "rhs" + "_".join([str(ele) for ele in rhs_shape])
-    A = te.placeholder(shape=lhs_shape, name="A")
-    B = te.placeholder(shape=rhs_shape, name="B")
+    A = tvm.placeholder(shape=lhs_shape, name="A")
+    B = tvm.placeholder(shape=rhs_shape, name="B")
     if typ == "add":
         C = topi.broadcast_add(A, B)
     elif typ == "sub":

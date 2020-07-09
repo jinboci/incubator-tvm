@@ -15,17 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
 from tvm import relay
 
 def check_type_err(expr, msg):
     try:
-        mod = tvm.IRModule.from_expr(expr)
+        mod = relay.Module.from_expr(expr)
         mod = relay.transform.InferType()(mod)
         entry = mod["main"]
         expr = entry if isinstance(expr, relay.Function) else entry.body
         assert False
-    except tvm.error.TVMError as err:
+    except tvm.TVMError as err:
         assert msg in str(err)
 
 def test_wellformed():

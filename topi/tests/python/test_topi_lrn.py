@@ -17,23 +17,12 @@
 """Test code for local response normalization"""
 import numpy as np
 import tvm
-from tvm import te
 import topi
 from topi.util import get_const_tuple
 import topi.testing
 
-_lrn_schedule = {
-    "generic": topi.generic.schedule_lrn,
-    "gpu": topi.cuda.schedule_lrn,
-    "opencl": topi.cuda.schedule_lrn,
-    "metal": topi.cuda.schedule_lrn,
-    "rocm": topi.cuda.schedule_lrn,
-    "vulkan": topi.cuda.schedule_lrn,
-    "nvptx": topi.cuda.schedule_lrn,
-}
-
 def verify_lrn(shape, size, axis, bias, alpha, beta):
-    A = te.placeholder(shape, name='A')
+    A = tvm.placeholder(shape, name='A')
     B = topi.nn.lrn(A, size, axis, alpha, beta, bias)
     dtype = A.dtype
 
@@ -41,13 +30,15 @@ def verify_lrn(shape, size, axis, bias, alpha, beta):
     b_np = topi.testing.lrn_python(a_np, size, axis, bias, alpha, beta)
 
     def check_device(device):
-        if not tvm.runtime.enabled(device):
+        if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s_func = topi.testing.dispatch(device, _lrn_schedule)
-            s = s_func([B])
+            if device == 'llvm':
+                s = topi.generic.schedule_lrn([B])
+            else:
+                s = topi.cuda.schedule_lrn([B])
         ctx = tvm.context(device, 0)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), ctx)

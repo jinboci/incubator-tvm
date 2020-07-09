@@ -19,7 +19,6 @@
 from __future__ import absolute_import as _abs
 from collections import namedtuple
 import tvm
-from tvm import te
 
 from .dilate import dilate
 from .pad import pad
@@ -48,15 +47,16 @@ def _get_workload(data, kernel, stride, padding, out_dtype):
                     out_channel, kh, kw, HPAD, WPAD, HSTR, WSTR)
 
 
+@tvm.target.generic_func
 def depthwise_conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=None):
     """Depthwise convolution nchw forward operator.
 
     Parameters
     ----------
-    Input : tvm.te.Tensor
+    Input : tvm.Tensor
         4-D with shape [batch, in_channel, in_height, in_width]
 
-    Filter : tvm.te.Tensor
+    Filter : tvm.Tensor
         4-D with shape [in_channel, channel_multiplier, filter_height, filter_width]
 
     stride : tuple of two ints
@@ -73,7 +73,7 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=No
 
     Returns
     -------
-    Output : tvm.te.Tensor
+    Output : tvm.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
     out_dtype = Input.dtype if out_dtype is None else out_dtype
@@ -105,13 +105,13 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=No
     pad_after = [0, 0, pad_down, pad_right]
     PaddedInput = pad(Input, pad_before, pad_after, name="PaddedInput")
     # depthconv stage
-    idxdiv = tvm.tir.indexdiv
-    idxmod = tvm.tir.indexmod
-    di = te.reduce_axis((0, filter_height), name='di')
-    dj = te.reduce_axis((0, filter_width), name='dj')
-    Output = te.compute(
+    idxdiv = tvm.indexdiv
+    idxmod = tvm.indexmod
+    di = tvm.reduce_axis((0, filter_height), name='di')
+    dj = tvm.reduce_axis((0, filter_width), name='dj')
+    Output = tvm.compute(
         (batch, out_channel, out_height, out_width),
-        lambda b, c, i, j: te.sum(
+        lambda b, c, i, j: tvm.sum(
             (PaddedInput[b, idxdiv(c, channel_multiplier), i*stride_h+di*dilation_h,
                          j*stride_w+dj*dilation_w].astype(out_dtype) *
              Filter[idxdiv(c, channel_multiplier),
@@ -121,15 +121,16 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=No
     return Output
 
 
+@tvm.target.generic_func
 def depthwise_conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype=None):
     """Depthwise convolution nhwc forward operator.
 
     Parameters
     ----------
-    Input : tvm.te.Tensor
+    Input : tvm.Tensor
         4-D with shape [batch, in_height, in_width, in_channel]
 
-    Filter : tvm.te.Tensor
+    Filter : tvm.Tensor
         4-D with shape [filter_height, filter_width, in_channel, channel_multiplier]
 
     stride : tuple of two ints
@@ -146,7 +147,7 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype=No
 
     Returns
     -------
-    Output : tvm.te.Tensor
+    Output : tvm.Tensor
         4-D with shape [batch, out_height, out_width, out_channel]
     """
     out_dtype = Input.dtype if out_dtype is None else out_dtype
@@ -178,14 +179,14 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype=No
     pad_after = [0, pad_down, pad_right, 0]
     PaddedInput = pad(Input, pad_before, pad_after, name="PaddedInput")
     # depthconv stage
-    idxdiv = tvm.tir.indexdiv
-    idxmod = tvm.tir.indexmod
+    idxdiv = tvm.indexdiv
+    idxmod = tvm.indexmod
 
-    di = te.reduce_axis((0, filter_height), name='di')
-    dj = te.reduce_axis((0, filter_width), name='dj')
-    Output = te.compute(
+    di = tvm.reduce_axis((0, filter_height), name='di')
+    dj = tvm.reduce_axis((0, filter_width), name='dj')
+    Output = tvm.compute(
         (batch, out_height, out_width, out_channel),
-        lambda b, i, j, c: te.sum(
+        lambda b, i, j, c: tvm.sum(
             (PaddedInput[b, i*stride_h + di*dilation_h, j*stride_w + dj*dilation_w,
                          idxdiv(c, channel_multiplier)].astype(out_dtype) *
              Filter[di, dj,
@@ -200,10 +201,10 @@ def depthwise_conv2d_backward_input_nhwc(Filter, Out_grad, oshape, ishape, strid
 
     Parameters
     ----------
-    Filter : tvm.te.Tensor
+    Filter : tvm.Tensor
         4-D with shape [filter_height, filter_width, in_channel, channel_multiplier]
 
-    Out_grad : tvm.te.Tensor
+    Out_grad : tvm.Tensor
         4-D with shape [batch, out_height, out_width, out_channel]
 
     stride : tuple of two ints
@@ -214,7 +215,7 @@ def depthwise_conv2d_backward_input_nhwc(Filter, Out_grad, oshape, ishape, strid
 
     Returns
     -------
-    Output : tvm.te.Tensor
+    Output : tvm.Tensor
         4-D with shape [batch, in_height, in_width, in_channel]
     """
     batch, in_h, in_w, in_c = ishape
@@ -236,19 +237,19 @@ def depthwise_conv2d_backward_input_nhwc(Filter, Out_grad, oshape, ishape, strid
     bpad_right = (filter_w - 1 - fpad_right) + (stride_w - 1)
 
     padded_out_grad = pad(dilated_out_grad, \
-                          [0, bpad_top, bpad_left, 0], \
-                          [0, bpad_bottom, bpad_right, 0], \
-                          name='padded_out_grad')
+                                  [0, bpad_top, bpad_left, 0], \
+                                  [0, bpad_bottom, bpad_right, 0], \
+                                  name='padded_out_grad')
 
-    dh = te.reduce_axis((0, filter_h), name='dh')
-    dw = te.reduce_axis((0, filter_w), name='dw')
-    dc = te.reduce_axis((0, channel_multiplier), name='dc')
+    dh = tvm.reduce_axis((0, filter_h), name='dh')
+    dw = tvm.reduce_axis((0, filter_w), name='dw')
+    dc = tvm.reduce_axis((0, channel_multiplier), name='dc')
 
-    In_grad = te.compute(
+    In_grad = tvm.compute(
         (batch, in_h, in_w, in_c),
-        lambda b, h, w, c: te.sum(padded_out_grad[b, h+dh, w+dw, c*channel_multiplier + dc] * \
-                                  Filter[filter_h-1-dh, filter_w-1-dw, c, dc],
-                                  axis=[dh, dw, dc]), tag='depthwise_conv2d_backward_input_nhwc')
+        lambda b, h, w, c: tvm.sum(padded_out_grad[b, h+dh, w+dw, c*channel_multiplier + dc] * \
+                                   Filter[filter_h-1-dh, filter_w-1-dw, c, dc],
+                                   axis=[dh, dw, dc]), tag='depthwise_conv2d_backward_input_nhwc')
 
     return In_grad
 
@@ -258,10 +259,10 @@ def depthwise_conv2d_backward_weight_nhwc(Input, Out_grad, oshape, fshape, strid
 
     Parameters
     ----------
-    Input : tvm.te.Tensor
+    Input : tvm.Tensor
         4-D with shape [batch, in_height, in_width, in_channel]
 
-    Out_grad : tvm.te.Tensor
+    Out_grad : tvm.Tensor
         4-D with shape [batch, out_height, out_width, out_channel]
 
     stride : tuple of two ints
@@ -272,7 +273,7 @@ def depthwise_conv2d_backward_weight_nhwc(Input, Out_grad, oshape, fshape, strid
 
     Returns
     -------
-    Output : tvm.te.Tensor
+    Output : tvm.Tensor
         4-D with shape [filter_height, filter_width, in_channel, channel_multiplier]
     """
     batch, out_h, out_w, out_c = oshape
@@ -286,19 +287,19 @@ def depthwise_conv2d_backward_weight_nhwc(Input, Out_grad, oshape, fshape, strid
     pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(padding, (filter_h, filter_w))
 
     padded_in = pad(Input, \
-                    [0, pad_top, pad_left, 0], \
-                    [0, pad_bottom, pad_right, 0], \
-                    name='padded_in')
+                        [0, pad_top, pad_left, 0], \
+                        [0, pad_bottom, pad_right, 0], \
+                        name='padded_in')
 
-    dh = te.reduce_axis((0, Out_grad.shape[1].value), name='dh')
-    dw = te.reduce_axis((0, Out_grad.shape[2].value), name='dw')
-    db = te.reduce_axis((0, batch), name='db')
-    idxdiv = tvm.tir.indexdiv
-    idxmod = tvm.tir.indexmod
+    dh = tvm.reduce_axis((0, Out_grad.shape[1].value), name='dh')
+    dw = tvm.reduce_axis((0, Out_grad.shape[2].value), name='dw')
+    db = tvm.reduce_axis((0, batch), name='db')
+    idxdiv = tvm.indexdiv
+    idxmod = tvm.indexmod
 
-    Weight_grad = te.compute(
+    Weight_grad = tvm.compute(
         (filter_h, filter_w, in_c, channel_multiplier),
-        lambda fh, fw, c, m: te.sum(
+        lambda fh, fw, c, m: tvm.sum(
             Out_grad[db, dh, dw, c*channel_multiplier+idxmod(m, channel_multiplier)] *
             padded_in[db, fh+dh*stride_h, fw+dw*stride_w, c], axis=[db, dh, dw]),
         tag='depthwise_conv2d_backward_weight_nhwc')
@@ -306,16 +307,17 @@ def depthwise_conv2d_backward_weight_nhwc(Input, Out_grad, oshape, fshape, strid
     return Weight_grad
 
 
+@tvm.target.generic_func
 def depthwise_conv2d_NCHWc(Input, Filter, stride, padding, dilation,
                            layout, out_layout, out_dtype=None):
     """Depthwise convolution NCHW[x]c forward operator.
 
     Parameters
     ----------
-    Input : tvm.te.Tensor
+    Input : tvm.Tensor
         5-D with shape [batch, in_channel_chunk, in_height, in_width, in_channel_block]
 
-    Filter : tvm.te.Tensor
+    Filter : tvm.Tensor
         6-D with shape [out_channel_chunk, 1, filter_height, filter_width, 1, out_channel_block]
         In NCHWc depthwise convolution,
         we group kernel's in_channel and channel_multiplier together then do the tiling.
@@ -340,7 +342,7 @@ def depthwise_conv2d_NCHWc(Input, Filter, stride, padding, dilation,
 
     Returns
     -------
-    Output : tvm.te.Tensor
+    Output : tvm.Tensor
         5-D with shape [batch, out_channel_chunk, out_height, out_width, out_channel_block]
     """
     raise ValueError("missing register for topi.nn.depthwise_conv2d_NCHWc")

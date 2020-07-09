@@ -20,6 +20,7 @@ tvm.relay.image
 ---------------
 
 .. automodule:: tvm.relay.image
-   :members:
-   :imported-members:
-   :autosummary:
+    :members:
+
+.. automodule:: tvm.relay.op.image
+    :members:

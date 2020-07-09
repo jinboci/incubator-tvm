@@ -16,24 +16,25 @@
 # under the License.
 """Binary Neural Network (BNN) Operators"""
 # pylint: disable=invalid-name
-from tvm import te
+from __future__ import absolute_import as _abs
+import tvm
 from ..util import get_const_tuple
 
-def batch_matmul(x, y):
+def batch_matmul_default(x, y):
     """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
     data in batch.
 
     Parameters
     ----------
-    x : tvm.te.Tensor
+    x : tvm.Tensor
         3-D with shape [batch, M, K]
 
-    y : tvm.te.Tensor
+    y : tvm.Tensor
         3-D with shape [batch, N, K]
 
     Returns
     -------
-    output : tvm.te.Tensor
+    output : tvm.Tensor
         3-D with shape [batch, M, N]
     """
     assert len(x.shape) == 3 and len(y.shape) == 3, "only support 3-dim batch_matmul"
@@ -43,7 +44,27 @@ def batch_matmul(x, y):
     assert x_shape[2] == y_shape[2], "shapes of x and y is inconsistant"
     batch, M, K = x.shape
     N = y.shape[1]
-    k = te.reduce_axis((0, K), name='k')
-    return te.compute((batch, M, N),
-                      lambda b, i, j: te.sum(x[b, i, k] * y[b, j, k], axis=k),
-                      tag='batch_matmul')
+    k = tvm.reduce_axis((0, K), name='k')
+    return tvm.compute((batch, M, N),
+                       lambda b, i, j: tvm.sum(x[b, i, k] * y[b, j, k], axis=k),
+                       tag='batch_matmul')
+
+@tvm.target.generic_func
+def batch_matmul(x, y):
+    """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
+    data in batch.
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        3-D with shape [batch, M, K]
+
+    y : tvm.Tensor
+        3-D with shape [batch, N, K]
+
+    Returns
+    -------
+    output : tvm.Tensor
+        3-D with shape [batch, M, N]
+    """
+    return batch_matmul_default(x, y)

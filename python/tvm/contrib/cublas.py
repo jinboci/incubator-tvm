@@ -15,9 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """External function interface to cuBLAS libraries."""
-import tvm
-from tvm import te
+from __future__ import absolute_import as _abs
 
+from .. import api as _api
+from .. import intrin as _intrin
 
 def matmul(lhs, rhs, transa=False, transb=False, dtype=None):
     """Create an extern op that compute matrix mult of A and rhs with cuBLAS
@@ -41,9 +42,9 @@ def matmul(lhs, rhs, transa=False, transb=False, dtype=None):
     n = lhs.shape[1] if transa else lhs.shape[0]
     m = rhs.shape[0] if transb else rhs.shape[1]
     dtype = dtype if dtype is not None else lhs.dtype
-    return te.extern(
+    return _api.extern(
         (n, m), [lhs, rhs],
-        lambda ins, outs: tvm.tir.call_packed(
+        lambda ins, outs: _intrin.call_packed(
             "tvm.contrib.cublas.matmul",
             ins[0], ins[1], outs[0], transa, transb), dtype=dtype, name="C")
 
@@ -70,8 +71,8 @@ def batch_matmul(lhs, rhs, transa=False, transb=False, dtype=None):
     n = lhs.shape[2] if transa else lhs.shape[1]
     m = rhs.shape[1] if transb else rhs.shape[2]
     dtype = dtype if dtype is not None else lhs.dtype
-    return te.extern(
+    return _api.extern(
         (b, n, m), [lhs, rhs],
-        lambda ins, outs: tvm.tir.call_packed(
+        lambda ins, outs: _intrin.call_packed(
             "tvm.contrib.cublas.batch_matmul",
             ins[0], ins[1], outs[0], transa, transb), dtype=dtype, name="C")

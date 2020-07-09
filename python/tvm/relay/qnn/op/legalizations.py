@@ -16,11 +16,12 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument
 """Backend QNN related feature registration"""
-import numpy as np
+from __future__ import absolute_import
 
 import tvm
 from tvm import relay
 from .. import op as reg
+from ...util import get_scalar_from_constant
 
 #################################################
 # Register the functions for different operators.
@@ -53,15 +54,6 @@ def qnn_dense_legalize(attrs, inputs, types):
 # Helper functions.
 ###################
 
-def get_scalar_from_constant(expr):
-    """ Returns scalar value from Relay constant scalar. """
-    assert isinstance(expr, relay.Constant) and not expr.data.shape, \
-        "Expr is not a constant scalar."
-    value = expr.data.asnumpy()
-    assert value.dtype == np.dtype(np.int32) or value.dtype == np.dtype(np.float32), \
-        "value must be float32/int32"
-    return np.asscalar(value)
-
 # Helper function for lowering in the abscence of fast Int8 arithmetic units.
 def helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay_op):
     """ Converts QNN operators into a sequence of Relay operators that are friendly to HW that do
@@ -71,7 +63,7 @@ def helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay_op):
 
     Parameters
     ----------
-    attrs : tvm.ir.Attrs
+    attrs : tvm.attrs.Attrs
         Attributes of current convolution
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized
@@ -114,7 +106,7 @@ def helper_change_dtypes_to_uint8_int8(attrs, inputs, types, relay_op):
 
     Parameters
     ----------
-    attrs : tvm.ir.Attrs
+    attrs : tvm.attrs.Attrs
         Attributes of current convolution
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized
@@ -177,7 +169,7 @@ def helper_change_dtypes_to_be_same(attrs, inputs, types, relay_op):
 
     Parameters
     ----------
-    attrs : tvm.ir.Attrs
+    attrs : tvm.attrs.Attrs
         Attributes of current convolution
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized
@@ -228,19 +220,14 @@ def helper_change_dtypes_to_be_same(attrs, inputs, types, relay_op):
 
 def is_fast_int8_on_intel():
     """ Checks whether the hardware has support for fast Int8 arithmetic operations. """
-    target = tvm.target.Target.current(allow_none=False)
+    target = tvm.target.current_target(allow_none=False)
     intel_supported_arches = {'-mcpu=skylake-avx512', '-mcpu=cascadelake'}
     return intel_supported_arches.intersection(set(target.options))
 
 def is_fast_int8_on_arm():
     """ Checks whether the hardware has support for fast Int8 arithmetic operations. """
-    target = tvm.target.Target.current(allow_none=False)
+    target = tvm.target.current_target(allow_none=False)
     return '+v8.2a,+dotprod' in ' '.join(target.options)
-
-def is_aarch64_arm():
-    """ Checks whether we are compiling for an AArch64 target. """
-    target = tvm.target.Target.current(allow_none=False)
-    return 'aarch64' in ' '.join(target.options)
 
 ########################
 # ARM CPU legalizations.
@@ -249,10 +236,9 @@ def is_aarch64_arm():
 @qnn_conv2d_legalize.register('arm_cpu')
 def _qnn_conv2d_legalize_arm_cpu(attrs, inputs, types):
     # ARM prefers the dtypes to be same.
-    if (is_aarch64_arm() and attrs["data_layout"] == "NHWC") or is_fast_int8_on_arm():
+    if is_fast_int8_on_arm():
         return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.conv2d)
     return helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay.nn.conv2d)
-
 
 @qnn_dense_legalize.register('arm_cpu')
 def _qnn_dense_legalize_arm_cpu(attrs, inputs, types):
@@ -278,17 +264,3 @@ def _qnn_dense_legalize_intel_cpu(attrs, inputs, types):
     if is_fast_int8_on_intel():
         return helper_change_dtypes_to_uint8_int8(attrs, inputs, types, relay.qnn.op.dense)
     return helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay.nn.dense)
-
-#####################
-# CUDA legalizations.
-#####################
-
-@qnn_conv2d_legalize.register('cuda')
-def _qnn_conv2d_legalize_cuda(attrs, inputs, types):
-    # CUDA prefers the dtypes to be same.
-    return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.conv2d)
-
-@qnn_dense_legalize.register('cuda')
-def _qnn_dense_legalize_cuda(attrs, inputs, types):
-    # CUDA prefers the dtypes to be same.
-    return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.dense)

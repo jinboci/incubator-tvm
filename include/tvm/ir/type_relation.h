@@ -24,10 +24,10 @@
 #ifndef TVM_IR_TYPE_RELATION_H_
 #define TVM_IR_TYPE_RELATION_H_
 
-#include <tvm/ir/attrs.h>
-#include <tvm/ir/env_func.h>
-#include <tvm/ir/module.h>
 #include <tvm/ir/type.h>
+#include <tvm/ir/module.h>
+#include <tvm/ir/env_func.h>
+#include <tvm/ir/attrs.h>
 
 namespace tvm {
 
@@ -50,16 +50,7 @@ class TypeCallNode : public TypeNode {
     v->Visit("span", &span);
   }
 
-  bool SEqualReduce(const TypeCallNode* other, SEqualReducer equal) const {
-    return equal(func, other->func) && equal(args, other->args);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(func);
-    hash_reduce(args);
-  }
-
-  static constexpr const char* _type_key = "TypeCall";
+  static constexpr const char* _type_key = "relay.TypeCall";
   TVM_DECLARE_FINAL_OBJECT_INFO(TypeCallNode, TypeNode);
 };
 
@@ -85,8 +76,6 @@ class TypeCall : public Type {
  */
 class TypeReporterNode : public Object {
  public:
-  /*! \brief virtual destructor */
-  virtual ~TypeReporterNode() {}
   /*!
    * \brief Create a type equality constraint.
    *
@@ -103,7 +92,7 @@ class TypeReporterNode : public Object {
    * \return false if assertation can be proven to have failed
    *      true if solver can still proceed.
    */
-  TVM_DLL virtual bool Assert(const PrimExpr& cond) = 0;
+  TVM_DLL virtual bool Assert(const PrimExpr& cond)= 0;
   /*!
    * \brief assert shape expression equals each other.
    * \param lhs The left operand.
@@ -128,7 +117,7 @@ class TypeReporterNode : public Object {
   // solver is not serializable.
   void VisitAttrs(AttrVisitor* v) {}
 
-  static constexpr const char* _type_key = "TypeReporter";
+  static constexpr const char* _type_key = "relay.TypeReporter";
   TVM_DECLARE_FINAL_OBJECT_INFO(TypeReporterNode, Object);
 };
 
@@ -139,9 +128,11 @@ class TypeReporterNode : public Object {
 class TypeReporter : public ObjectRef {
  public:
   TypeReporter() {}
-  explicit TypeReporter(ObjectPtr<Object> n) : ObjectRef(n) {}
+  explicit TypeReporter(ObjectPtr<Object> n) : ObjectRef(n) {
+  }
   TypeReporterNode* operator->() const {
-    return const_cast<TypeReporterNode*>(static_cast<const TypeReporterNode*>(get()));
+    return const_cast<TypeReporterNode*>(
+        static_cast<const TypeReporterNode*>(get()));
   }
   using ContainerType = TypeReporterNode;
 };
@@ -165,11 +156,14 @@ class TypeReporter : public ObjectRef {
  * \return false if This relation cannot be resolved.
  *   true if this relation has been resolved.
  */
-using TypeRelationFn = TypedEnvFunc<bool(const Array<Type>& args, int num_inputs,
-                                         const Attrs& attrs, const TypeReporter& reporter)>;
+using TypeRelationFn =
+    TypedEnvFunc<bool(const Array<Type>& args,
+                      int num_inputs,
+                      const Attrs& attrs,
+                      const TypeReporter& reporter)>;
 
 /*!
- * \brief User defined type relation, it is an input-output relation on types.
+ * \brief User defined type relation, is an input-output relation on types.
  *
  * TypeRelation is more generalized than type call as it allows inference
  * of both inputs and outputs.
@@ -199,19 +193,7 @@ class TypeRelationNode : public TypeConstraintNode {
     v->Visit("span", &span);
   }
 
-  bool SEqualReduce(const TypeRelationNode* other, SEqualReducer equal) const {
-    return equal(func, other->func) && equal(args, other->args) &&
-           equal(num_inputs, other->num_inputs) && equal(attrs, other->attrs);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(func);
-    hash_reduce(args);
-    hash_reduce(num_inputs);
-    hash_reduce(attrs);
-  }
-
-  static constexpr const char* _type_key = "TypeRelation";
+  static constexpr const char* _type_key = "relay.TypeRelation";
   TVM_DECLARE_FINAL_OBJECT_INFO(TypeRelationNode, TypeConstraintNode);
 };
 
@@ -229,7 +211,10 @@ class TypeRelation : public TypeConstraint {
    * \param attrs Attributes to the relation function.
    * \sa TypeRelationNode for more docs about these fields.
    */
-  TVM_DLL TypeRelation(TypeRelationFn func, Array<Type> args, int num_inputs, Attrs attrs);
+  TVM_DLL TypeRelation(TypeRelationFn func,
+                       Array<Type> args,
+                       int num_inputs,
+                       Attrs attrs);
 
   TVM_DEFINE_OBJECT_REF_METHODS(TypeRelation, TypeConstraint, TypeRelationNode);
 };

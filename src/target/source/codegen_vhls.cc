@@ -20,13 +20,11 @@
 /*!
  * \file codegen_vhls.cc
  */
-#include "codegen_vhls.h"
-
-#include <string>
 #include <vector>
-
-#include "../../runtime/opencl/sdaccel/sdaccel_module.h"
+#include <string>
+#include "codegen_vhls.h"
 #include "../build_common.h"
+#include "../../runtime/opencl/sdaccel/sdaccel_module.h"
 
 namespace tvm {
 namespace codegen {
@@ -42,49 +40,42 @@ void CodeGenVivadoHLS::PrintType(DataType t, std::ostream& os) {
   if (t.is_uint()) {
     switch (t.bits()) {
       case 8:
-        os << "unsigned char";
-        break;
+        os << "unsigned char"; break;
       case 16:
-        os << "unsigned short";
-        break;
+        os << "unsigned short"; break;
       case 32:
-        os << "unsigned int";
-        break;
+        os << "unsigned int"; break;
       case 64:
-        os << "unsigned long long";
-        break;
+        os << "unsigned long long"; break;
       default:
-        os << "ap_uint<" << t.bits() << ">";
-        break;
+        os << "ap_uint<" << t.bits() << ">"; break;
     }
   } else if (t.is_int()) {
     switch (t.bits()) {
       case 8:
-        os << "char";
-        break;
+        os << "char"; break;
       case 16:
-        os << "short";
-        break;
+        os << "short"; break;
       case 32:
-        os << "int";
-        break;
+        os << "int"; break;
       case 64:
-        os << "long long";
-        break;
+        os << "long long"; break;
       default:
-        os << "ap_int<" << t.bits() << ">";
-        break;
+        os << "ap_int<" << t.bits() << ">"; break;
     }
   } else {
     CodeGenC::PrintType(t, os);
   }
 }
 
-void CodeGenVivadoHLS::PrintFuncPrefix() { stream << "extern \"C\" void"; }
+void CodeGenVivadoHLS::AddFunction(LoweredFunc f) {
+  this->stream << "extern \"C\" ";
+  CodeGenC::AddFunction(f);
+}
 
-void CodeGenVivadoHLS::PreFunctionBody(const PrimFunc& f) {
-  for (size_t i = 0; i < f->params.size(); ++i) {
-    Var v = f->params[i];
+void CodeGenVivadoHLS::PreFunctionBody(LoweredFunc f) {
+  for (size_t i = 0; i < f->args.size(); ++i) {
+    Var v = f->args[i];
     std::string vid = GetVarID(v.get());
     if (v.dtype().is_handle()) {
       this->stream << "#pragma HLS INTERFACE m_axi port=" << vid << "  offset=slave bundle=gmem\n";
@@ -94,8 +85,9 @@ void CodeGenVivadoHLS::PreFunctionBody(const PrimFunc& f) {
   this->stream << "#pragma HLS INTERFACE s_axilite port=return bundle=control\n\n";
 }
 
-template <typename T>
-inline void PrintBinaryExpr(const T* op, const char* opstr,
+template<typename T>
+inline void PrintBinaryExpr(const T* op,
+                            const char *opstr,
                             std::ostream& os,  // NOLINT(*)
                             CodeGenVivadoHLS* p) {
   os << opstr << '(';
@@ -105,63 +97,50 @@ inline void PrintBinaryExpr(const T* op, const char* opstr,
   os << ')';
 }
 
-void CodeGenVivadoHLS::VisitExpr_(const MinNode* op, std::ostream& os) {  // NOLINT(*)
-  const char* opstr = "std::min";
+void CodeGenVivadoHLS::VisitExpr_(const MinNode *op, std::ostream& os) {  // NOLINT(*)
+  const char *opstr = "std::min";
   if (op->dtype.is_float()) {
     switch (op->dtype.bits()) {
       case 32:
-        opstr = "fminf";
-        break;
+        opstr = "fminf"; break;
       case 64:
-        opstr = "fmin";
-        break;
+        opstr = "fmin"; break;
     }
   }
 
   PrintBinaryExpr(op, opstr, os, this);
 }
 
-void CodeGenVivadoHLS::VisitExpr_(const MaxNode* op, std::ostream& os) {  // NOLINT(*)
-  const char* opstr = "std::max";
+void CodeGenVivadoHLS::VisitExpr_(const MaxNode *op, std::ostream& os) {  // NOLINT(*)
+  const char *opstr = "std::max";
   if (op->dtype.is_float()) {
     switch (op->dtype.bits()) {
       case 32:
-        opstr = "fmaxf";
-        break;
+        opstr = "fmaxf"; break;
       case 64:
-        opstr = "fmax";
-        break;
+        opstr = "fmax"; break;
     }
   }
 
   PrintBinaryExpr(op, opstr, os, this);
 }
 
-runtime::Module BuildSDAccel(IRModule mod, std::string target_str) {
+
+runtime::Module BuildSDAccel(Array<LoweredFunc> funcs, std::string target_str) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
   CodeGenVivadoHLS cg;
 
   // Generate source code for get_source().
   cg.Init(output_ssa);
-
-  for (auto kv : mod->functions) {
-    CHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenVHLS: Can only take PrimFunc";
-    auto f = Downcast<PrimFunc>(kv.second);
-    auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
-    CHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
-        << "CodeGenVLHS: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
+  for (LoweredFunc f : funcs) {
     cg.AddFunction(f);
   }
-
   std::string whole_code = cg.Finish();
 
   // Generate source code for compilation.
-  Array<Array<runtime::String> > kernel_info;
-
-  for (auto kv : mod->functions) {
-    CHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenOpenCL: Can only take PrimFunc";
-    auto f = Downcast<PrimFunc>(kv.second);
+  Array<Array<PrimExpr> > kernel_info;
+  for (LoweredFunc f : funcs) {
     CodeGenVivadoHLS cg;
     cg.Init(output_ssa);
     cg.AddFunction(f);
@@ -169,11 +148,7 @@ runtime::Module BuildSDAccel(IRModule mod, std::string target_str) {
     if (const auto* f = runtime::Registry::Get("tvm_callback_vhls_postproc")) {
       code = (*f)(code).operator std::string();
     }
-
-    auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-    CHECK(global_symbol.defined())
-        << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
-    kernel_info.push_back({global_symbol.value(), code});
+    kernel_info.push_back(Array<PrimExpr>({f->name, code}));
   }
 
   std::string xclbin;
@@ -183,10 +158,11 @@ runtime::Module BuildSDAccel(IRModule mod, std::string target_str) {
   } else {
     LOG(FATAL) << "Cannot compile Vivado HLS code.";
   }
-  return SDAccelModuleCreate(xclbin, "xclbin", ExtractFuncInfo(mod), whole_code);
+  return SDAccelModuleCreate(xclbin, "xclbin", ExtractFuncInfo(funcs), whole_code);
 }
 
-TVM_REGISTER_GLOBAL("target.build.sdaccel").set_body_typed(BuildSDAccel);
+TVM_REGISTER_GLOBAL("codegen.build_sdaccel")
+.set_body_typed(BuildSDAccel);
 
 }  // namespace codegen
 }  // namespace tvm

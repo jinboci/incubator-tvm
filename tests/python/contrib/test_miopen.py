@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
 from tvm.contrib import miopen
 import numpy as np
 
@@ -33,7 +32,7 @@ def test_conv2d():
     dilation_w = 1
 
     xshape = [1, in_channel, 128, 128]
-    if not tvm.runtime.enabled("rocm"):
+    if not tvm.module.enabled("rocm"):
         print("skip because rocm is not enabled...")
         return
     if not tvm.get_global_func("tvm.contrib.miopen.conv2d.setup", True):
@@ -41,8 +40,8 @@ def test_conv2d():
         return
     wshape = (out_channel, in_channel, filter_h, filter_w)
 
-    X = te.placeholder(xshape, name='X')
-    W = te.placeholder(wshape, name='W')
+    X = tvm.placeholder(xshape, name='X')
+    W = tvm.placeholder(wshape, name='W')
     Y = miopen.conv2d_forward(X,
                               W,
                               stride_h,
@@ -56,7 +55,8 @@ def test_conv2d():
 
     yshape = [x.value for x in Y.shape]
     import topi
-    s = te.create_schedule(Y.op)
+    with tvm.target.create("rocm -libs=miopen"):
+        s = topi.generic.schedule_extern(Y)
 
     def verify():
         ctx = tvm.rocm(0)
@@ -66,10 +66,10 @@ def test_conv2d():
         y = tvm.nd.array(np.random.uniform(-1, 1, yshape).astype(np.float32), ctx)
         f(x, w, y)
 
-        Y_ref = topi.nn.conv2d_nchw(X, W, (stride_h, stride_w), (pad_h, pad_w),
-                                    (dilation_h, dilation_w))
-        s_ref = te.create_schedule(Y_ref.op)
-        f_ref = tvm.build(s_ref, [X, W, Y_ref], "rocm", target_host="llvm")
+        Y_ref = topi.nn.conv2d_nchw(X, W, (stride_h, stride_w), (pad_h, pad_w), (dilation_h, dilation_w))
+        with tvm.target.rocm():
+            s_ref = topi.generic.schedule_conv2d_nchw([Y_ref])
+        f_ref = tvm.build(s_ref, [X, W, Y_ref], "rocm")
         y_ref = tvm.nd.array(np.random.uniform(-1, 1, yshape).astype(np.float32), ctx)
         f_ref(x, w, y_ref)
         print("Max abs diff:", np.max(np.abs(y.asnumpy() - y_ref.asnumpy())))

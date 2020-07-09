@@ -18,7 +18,6 @@
 
 import numpy as np
 import tvm
-from tvm import te
 from tvm import autotvm
 from tvm.autotvm.task.space import FallbackConfigEntity
 import topi
@@ -29,12 +28,6 @@ from topi.util import get_const_tuple
 from common import get_all_backend, Int8Fallback
 
 
-_group_conv2d_nchw_implement = {
-    "generic": (topi.nn.group_conv2d_nchw, topi.generic.schedule_group_conv2d_nchw),
-    "gpu": (topi.cuda.group_conv2d_nchw, topi.cuda.schedule_group_conv2d_nchw),
-}
-
-
 def verify_group_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation, groups, add_bias=False, add_relu=False):
     print("Workload: (%d, %d, %d, %d, %d, %d, %d, %d, %d)" %
         (batch, in_channel, in_size, num_filter,
@@ -42,9 +35,9 @@ def verify_group_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, str
 
     in_height = in_width = in_size
 
-    A = te.placeholder((batch, in_channel, in_height, in_width), name='A')
-    W = te.placeholder((num_filter, in_channel // groups, kernel, kernel), name='W')
-    bias = te.placeholder((num_filter, 1, 1), name='bias')
+    A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A')
+    W = tvm.placeholder((num_filter, in_channel // groups, kernel, kernel), name='W')
+    bias = tvm.placeholder((num_filter, 1, 1), name='bias')
 
     a_shape = get_const_tuple(A.shape)
     w_shape = get_const_tuple(W.shape)
@@ -77,13 +70,12 @@ def verify_group_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, str
 
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            fcompute, fschedule = topi.testing.dispatch(device, _group_conv2d_nchw_implement)
-            C = fcompute(A, W, stride, padding, dilation, groups, dtype)
+            C = topi.nn.group_conv2d_nchw(A, W, stride, padding, dilation, groups, out_dtype=dtype)
             if add_bias:
                 C = topi.add(C, bias)
             if add_relu:
                 C = topi.nn.relu(C)
-            s = fschedule([C])
+            s = topi.generic.schedule_group_conv2d_nchw([C])
 
         a = tvm.nd.array(a_np, ctx)
         w = tvm.nd.array(w_np, ctx)
@@ -113,9 +105,9 @@ def verify_group_conv2d_NCHWc_int8(batch, in_channel, in_size, num_filter, kerne
 
     in_height = in_width = in_size
 
-    A = te.placeholder((batch, in_channel, in_height, in_width), name='A', dtype='int8')
-    W = te.placeholder((num_filter, in_channel // groups, kernel, kernel), name='W', dtype='int8')
-    bias = te.placeholder((num_filter // oc_block_factor, 1, 1, oc_block_factor), name='bias',
+    A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A', dtype='int8')
+    W = tvm.placeholder((num_filter, in_channel // groups, kernel, kernel), name='W', dtype='int8')
+    bias = tvm.placeholder((num_filter // oc_block_factor, 1, 1, oc_block_factor), name='bias',
                             dtype='int8')
 
     a_shape = get_const_tuple(A.shape)
@@ -157,12 +149,12 @@ def verify_group_conv2d_NCHWc_int8(batch, in_channel, in_size, num_filter, kerne
 
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            C = topi.cuda.group_conv2d_NCHWc_int8(A, W, stride, padding, dilation, groups, dtype)
+            C = topi.nn.group_conv2d_nchw(A, W, stride, padding, dilation, groups, out_dtype=dtype)
             if add_bias:
                 C = topi.add(C, bias)
             if add_relu:
                 C = topi.nn.relu(C)
-            s = topi.cuda.schedule_group_conv2d_NCHWc_int8([C])
+            s = topi.generic.schedule_group_conv2d_nchw([C])
 
         a = tvm.nd.array(a_np, ctx)
         w = tvm.nd.array(w_np, ctx)

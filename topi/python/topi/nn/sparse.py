@@ -18,11 +18,11 @@
 """Sparse operators"""
 from __future__ import absolute_import
 import tvm
-from tvm import te
 
 from ..util import get_const_tuple
 
 
+@tvm.target.generic_func
 def sparse_dense(data, weight_data, weight_indices, weight_indptr):
     """
     Computes sparse-dense matrix multiplication of `data` and
@@ -30,24 +30,24 @@ def sparse_dense(data, weight_data, weight_indices, weight_indptr):
 
     Parameters
     ----------
-    data : tvm.te.Tensor
+    x : tvm.Tensor
         2-D with shape [M, K], float32
 
-    weight_data : tvm.te.Tensor
+    weight_data : tvm.Tensor
         1-D with shape [nnz] (CSR) or
         3-D with shape [num_blocks, bs_r, bs_c] (BSR)
 
-    weight_indices : tvm.te.Tensor
+    weight_indices : tvm.Tensor
         1-D with shape [nnz] (CSR) or
         1-D with shape [num_blocks] (BSR)
 
-    weight_indptr : tvm.te.Tensor
+    weight_indptr : tvm.Tensor
         1-D with shape [N + 1] (CSR) or
         1-D with shape [(N + 1) // bs_r] (BSR)
 
     Returns
     -------
-    output : tvm.te.Tensor
+    output : tvm.Tensor
         2-D with shape [M, N]
     """
     assert len(weight_data.shape) in (1, 3)
@@ -67,12 +67,12 @@ def _sparse_dense_csrmm(data, weight_data, weight_indices, weight_indptr):
         row_start = weight_indptr[row]
         row_end = weight_indptr[row + 1]
         row_elems = row_end - row_start
-        elem_idx = te.reduce_axis((0, row_elems), name="elem_idx")
+        elem_idx = tvm.reduce_axis((0, row_elems), name="elem_idx")
         elem = row_start + elem_idx
         a_val = weight_data[elem]
         weight_val = data[i, weight_indices[elem]]
-        return te.sum(a_val * weight_val, axis=elem_idx)
-    return te.compute(oshape, f, tag="sparse_dense_csrmm")
+        return tvm.sum(a_val * weight_val, axis=elem_idx)
+    return tvm.compute(oshape, f, tag="sparse_dense_csrmm")
 
 
 def _sparse_dense_bsrmm(data, weight_data, weight_indices, weight_indptr):
@@ -85,27 +85,27 @@ def _sparse_dense_bsrmm(data, weight_data, weight_indices, weight_indptr):
         row_start = weight_indptr[nb_j]
         row_end = weight_indptr[nb_j + 1]
         row_elems = row_end - row_start
-        elem_idx = te.reduce_axis(
+        elem_idx = tvm.reduce_axis(
             (0, row_elems), name="elem_idx")
         block_offset = row_start + elem_idx
-        c = te.reduce_axis((0, bs_c), name="c")
+        c = tvm.reduce_axis((0, bs_c), name="c")
         block_j = weight_indices[block_offset]
         block_ij_val = weight_data[block_offset][j][c]
         x_val = data[i, bs_c * block_j + c]
-        return te.sum(block_ij_val * x_val, axis=[elem_idx, c])
+        return tvm.sum(block_ij_val * x_val, axis=[elem_idx, c])
 
-    idxd = tvm.tir.indexdiv
-    idxm = tvm.tir.indexmod
+    idxd = tvm.indexdiv
+    idxm = tvm.indexmod
 
-    bsrmm_block = te.compute(
+    bsrmm_block = tvm.compute(
         (m, num_blocks, bs_r), _compute_block,
         tag="sparse_dense_bsrmm_block")
-    return te.compute(
+    return tvm.compute(
         (m, num_blocks * bs_r),
         lambda m, n: bsrmm_block[m, idxd(n, bs_r), idxm(n, bs_r)],
         tag="sparse_dense_bsrmm")
 
-
+@tvm.target.generic_func
 def sparse_transpose(sparse_data, sparse_indices, sparse_indptr):
     """
     Transpose a square sparse matrix,
@@ -114,24 +114,24 @@ def sparse_transpose(sparse_data, sparse_indices, sparse_indptr):
 
     Parameters
     ----------
-    sparse_data : tvm.te.Tensor
+    sparse_data : tvm.Tensor
         1-D with shape [nonzeros], dtype of 'float32'
 
-    sparse_indices : tvm.te.Tensor
+    sparse_indices : tvm.Tensor
         1-D with shape [nonzeros], dtype of 'int32'
 
-    sparse_indptr : tvm.te.Tensor
+    sparse_indptr : tvm.Tensor
         1-D with shape [n+1], dtype of 'int32'
 
     Returns
     -------
-    out_data : tvm.te.Tensor
+    out_data : tvm.Tensor
         1-D with shape [nonzeros], dtype of 'float32'
 
-    out_indices : tvm.te.Tensor
+    out_indices : tvm.Tensor
         1-D with shape [nonzeros], dtype of 'int32'
 
-    out_indptr : tvm.te.Tensor
+    out_indptr : tvm.Tensor
         1-D with shape [n+1], dtype of 'int32'
     """
     assert len(sparse_data.shape) == 1, "error in data dimension"
@@ -144,21 +144,20 @@ def sparse_transpose(sparse_data, sparse_indices, sparse_indptr):
 
     # TODO: Add BSR transpose support
 
-    output_data, output_indices, output_indptr = te.extern(
+    output_data, output_indices, output_indptr = tvm.extern(
         shape=output_shape,
         inputs=[sparse_data, sparse_indices, sparse_indptr],
         fcompute=lambda ins, outs:
-        _csr_transpose_ir(ins[0], ins[1], ins[2], outs[0], outs[1], outs[2]),
+        csr_transpose_ir(ins[0], ins[1], ins[2], outs[0], outs[1], outs[2]),
         tag="sparse_transpose_csr",
         dtype=['float32', 'int32', 'int32'],
         name='out')
 
     return [output_data, output_indices, output_indptr]
 
-
-def _csr_transpose_ir(data, indices, indptr, out_data, out_indices, out_indptr):
+def csr_transpose_ir(data, indices, indptr, out_data, out_indices, out_indptr):
     """define ir for csr_transpose"""
-    irb = tvm.tir.ir_builder.create()
+    irb = tvm.ir_builder.create()
 
     data_ptr = irb.buffer_ptr(data)
     indices_ptr = irb.buffer_ptr(indices)

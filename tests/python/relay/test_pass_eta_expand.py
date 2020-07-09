@@ -19,7 +19,6 @@ import os
 import numpy as np
 
 import tvm
-from tvm import te
 from tvm import relay
 import tvm.relay.transform as _transform
 
@@ -33,8 +32,8 @@ def test_eta_expand_global_var():
             @aux
         }
     """)
-    seq = tvm.transform.Sequential([_transform.EtaExpand(expand_global_var=True)])
-    with tvm.transform.PassContext(opt_level=3):
+    seq = _transform.Sequential([_transform.EtaExpand(expand_global_var=True)])
+    with _transform.PassContext(opt_level=3):
         mod = seq(mod)
     expected = relay.fromtext(r"""
         v0.0.4
@@ -47,8 +46,7 @@ def test_eta_expand_global_var():
             }
         }
     """)
-    tvm.ir.assert_structural_equal(mod['main'], expected['main'],
-                                   map_free_vars=True)
+    relay.analysis.assert_graph_equal(mod['main'], expected['main'])
 
 
 def test_eta_expand_constructor():
@@ -62,8 +60,8 @@ def test_eta_expand_constructor():
             Cons
         }
     """)
-    seq = tvm.transform.Sequential([_transform.EtaExpand(expand_constructor=True)])
-    with tvm.transform.PassContext(opt_level=3):
+    seq = _transform.Sequential([_transform.EtaExpand(expand_constructor=True)])
+    with _transform.PassContext(opt_level=3):
         mod = seq(mod)
     expected = relay.fromtext(r"""
         v0.0.4
@@ -77,8 +75,7 @@ def test_eta_expand_constructor():
             }
         }
     """)
-    tvm.ir.assert_structural_equal(mod['main'], expected['main'],
-                                   map_free_vars=True)
+    relay.analysis.assert_graph_equal(mod['main'], expected['main'])
 
 
 if __name__ == '__main__':

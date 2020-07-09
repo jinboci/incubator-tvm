@@ -17,7 +17,6 @@
 """Test code for space to depth"""
 import numpy as np
 import tvm
-from tvm import te
 import topi
 import topi.testing
 
@@ -38,7 +37,7 @@ def verify_space_to_depth(block_size, batch, in_channel, in_height, in_width, la
     else:
         raise NotImplementedError('Layout not supported {}'.format(layout))
 
-    A = te.placeholder(in_shape, name='A', dtype='float32')
+    A = tvm.placeholder(in_shape, name='A', dtype='float32')
     dtype = A.dtype
     a_np = np.random.uniform(size=in_shape).astype(dtype)
 
@@ -57,7 +56,7 @@ def verify_space_to_depth(block_size, batch, in_channel, in_height, in_width, la
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.testing.get_injective_schedule(device)(B)
+            s = topi.generic.schedule_injective(B)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), ctx)
         f = tvm.build(s, [A, B], device)

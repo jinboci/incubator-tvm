@@ -16,10 +16,12 @@
 # under the License.
 """The C Types used in API."""
 # pylint: disable=invalid-name
+from __future__ import absolute_import as _abs
+
 import ctypes
 import struct
 from ..base import py_str, check_call, _LIB
-from ..runtime_ctypes import TVMByteArray, ArgTypeCode, TVMContext
+from ..runtime_ctypes import TVMByteArray, TypeCode, TVMContext
 
 class TVMValue(ctypes.Union):
     """TVMValue in C API"""
@@ -73,9 +75,9 @@ def _return_context(value):
 
 
 def _wrap_arg_func(return_f, type_code):
+    tcode = ctypes.c_int(type_code)
     def _wrap_func(x):
-        tcode = ctypes.c_int(type_code)
-        check_call(_LIB.TVMCbArgToReturn(ctypes.byref(x), ctypes.byref(tcode)))
+        check_call(_LIB.TVMCbArgToReturn(ctypes.byref(x), tcode))
         return return_f(x)
     return _wrap_func
 
@@ -86,21 +88,21 @@ def _ctx_to_int64(ctx):
 
 
 RETURN_SWITCH = {
-    ArgTypeCode.INT: lambda x: x.v_int64,
-    ArgTypeCode.FLOAT: lambda x: x.v_float64,
-    ArgTypeCode.HANDLE: _return_handle,
-    ArgTypeCode.NULL: lambda x: None,
-    ArgTypeCode.STR: lambda x: py_str(x.v_str),
-    ArgTypeCode.BYTES: _return_bytes,
-    ArgTypeCode.TVM_CONTEXT: _return_context
+    TypeCode.INT: lambda x: x.v_int64,
+    TypeCode.FLOAT: lambda x: x.v_float64,
+    TypeCode.HANDLE: _return_handle,
+    TypeCode.NULL: lambda x: None,
+    TypeCode.STR: lambda x: py_str(x.v_str),
+    TypeCode.BYTES: _return_bytes,
+    TypeCode.TVM_CONTEXT: _return_context
 }
 
 C_TO_PY_ARG_SWITCH = {
-    ArgTypeCode.INT: lambda x: x.v_int64,
-    ArgTypeCode.FLOAT: lambda x: x.v_float64,
-    ArgTypeCode.HANDLE: _return_handle,
-    ArgTypeCode.NULL: lambda x: None,
-    ArgTypeCode.STR: lambda x: py_str(x.v_str),
-    ArgTypeCode.BYTES: _return_bytes,
-    ArgTypeCode.TVM_CONTEXT: _return_context
+    TypeCode.INT: lambda x: x.v_int64,
+    TypeCode.FLOAT: lambda x: x.v_float64,
+    TypeCode.HANDLE: _return_handle,
+    TypeCode.NULL: lambda x: None,
+    TypeCode.STR: lambda x: py_str(x.v_str),
+    TypeCode.BYTES: _return_bytes,
+    TypeCode.TVM_CONTEXT: _return_context
 }

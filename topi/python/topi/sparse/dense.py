@@ -17,7 +17,6 @@
 """TVM operator compute Dense in CSR format."""
 from __future__ import absolute_import
 import tvm
-from tvm import te
 from .. import tag
 from ..util import simplify
 
@@ -27,30 +26,30 @@ def dense_si(data, indices, indptr, weight, bias=None):
 
     Parameters
     ----------
-    data : tvm.te.Tensor
+    data : tvm.Tensor
         1-D with shape [num_nonzeros]
 
-    indices : tvm.te.Tensor
+    indices : tvm.Tensor
         1-D with shape [num_nonzeros]
 
-    indptr : tvm.te.Tensor
+    indptr : tvm.Tensor
         1-D with shape [m+1]
 
-    weight : tvm.te.Tensor
+    weight : tvm.Tensor
         2-D with shape [k, n]
 
-    bias : tvm.te.Tensor, optional
+    bias : tvm.Tensor, optional
         1-D with shape [m]
 
     Returns
     -------
-    output : tvm.te.Tensor
+    output : tvm.Tensor
         2-D with shape [m, n]
     """
     assert len(data.shape) == 1 and len(indices.shape) == 1 and len(indptr.shape) == 1 \
         and len(weight.shape) == 2, "only support 2-dim dense"
-    assert isinstance(weight, te.tensor.Tensor), \
-        "weight matrix is assumed to be tvm.te.Tensor, but weight is `%s`" % (type(weight))
+    assert isinstance(weight, tvm.tensor.Tensor), \
+        "weight matrix is assumed to be tvm.Tensor, but weight is `%s`" % (type(weight))
     if bias is not None:
         assert len(bias.shape) == 1
     dtype = data.dtype
@@ -59,7 +58,7 @@ def dense_si(data, indices, indptr, weight, bias=None):
     def dense_default_ir(data, indices, indptr, weight, out):
         """Define IR for Dense"""
         dtype = data.dtype
-        irb = tvm.tir.ir_builder.create()
+        irb = tvm.ir_builder.create()
         data_ptr = irb.buffer_ptr(data)
         indices_ptr = irb.buffer_ptr(indices)
         indptr_ptr = irb.buffer_ptr(indptr)
@@ -70,8 +69,8 @@ def dense_si(data, indices, indptr, weight, bias=None):
         with irb.for_range(0, N, for_type="vectorize", name='n') as n:
             with irb.for_range(0, M, for_type="parallel", name='m') as m:
                 dot = irb.allocate(dtype, (1,), name='dot', scope='local')
-                out_ptr[m*N+n] = tvm.tir.const(0, dtype)
-                dot[0] = tvm.tir.const(0, dtype)
+                out_ptr[m*N+n] = tvm.const(0, dtype)
+                dot[0] = tvm.const(0, dtype)
                 row_start = indptr_ptr[m]
                 row_elems = indptr_ptr[m+1]-row_start
                 with irb.for_range(0, row_elems, name='k') as k:
@@ -80,12 +79,12 @@ def dense_si(data, indices, indptr, weight, bias=None):
                 out_ptr[m*N+n] += dot[0]
         return irb.get()
     oshape = (M, N)
-    matmul = te.extern(oshape, [data, indices, indptr, weight],
-                       lambda ins, outs: dense_default_ir(ins[0], ins[1], ins[2], ins[3], outs[0]),
-                       tag="dense", dtype=dtype, name='out')
+    matmul = tvm.extern(oshape, [data, indices, indptr, weight],
+                        lambda ins, outs: dense_default_ir(ins[0], ins[1], ins[2], ins[3], outs[0]),
+                        tag="dense", dtype=dtype, name='out')
     if bias is not None:
-        matmul = te.compute(oshape, lambda i, j: matmul[i, j] + bias[j], \
-                            tag=tag.BROADCAST)
+        matmul = tvm.compute(oshape, lambda i, j: matmul[i, j] + bias[j], \
+                             tag=tag.BROADCAST)
     return matmul
 
 
@@ -95,30 +94,30 @@ def dense_sw(data, w_data, w_indices, w_indptr, bias=None):
 
     Parameters
     ----------
-    data : tvm.te.Tensor
+    data : tvm.Tensor
         2-D with shape [m, k]
 
-    w_data : tvm.te.Tensor
+    w_data : tvm.Tensor
         1-D with shape [nonzeros]
 
-    w_indices : tvm.te.Tensor
+    w_indices : tvm.Tensor
         1-D with shape [nonzeros]
 
-    w_indptr : tvm.te.Tensor
+    w_indptr : tvm.Tensor
         1-D with shape [n+1]
 
-    bias : tvm.te.Tensor, optional
+    bias : tvm.Tensor, optional
         1-D with shape [n]
 
     Returns
     -------
-    output : tvm.te.Tensor
+    output : tvm.Tensor
         2-D with shape [m, n]
     """
     assert len(w_data.shape) == 1 and len(w_indices.shape) == 1 and len(w_indptr.shape) == 1 \
         and len(data.shape) == 2, "only support 2-dim dense"
-    assert isinstance(data, te.tensor.Tensor), \
-        "data matrix is assumed to be tvm.te.Tensor, but weight is `%s`" % (type(data))
+    assert isinstance(data, tvm.tensor.Tensor), \
+        "data matrix is assumed to be tvm.Tensor, but weight is `%s`" % (type(data))
     if bias is not None:
         assert len(bias.shape) == 1
     dtype = data.dtype
@@ -127,7 +126,7 @@ def dense_sw(data, w_data, w_indices, w_indptr, bias=None):
     def dense_default_ir(data, w_data, w_indices, w_indptr, out):
         """Define IR for Dense"""
         dtype = data.dtype
-        irb = tvm.tir.ir_builder.create()
+        irb = tvm.ir_builder.create()
         data_ptr = irb.buffer_ptr(data)
         w_data_ptr = irb.buffer_ptr(w_data)
         w_indices_ptr = irb.buffer_ptr(w_indices)
@@ -138,8 +137,8 @@ def dense_sw(data, w_data, w_indices, w_indptr, bias=None):
         with irb.for_range(0, M, for_type="vectorize", name='m') as m:
             with irb.for_range(0, N, for_type="parallel", name='n') as n:
                 dot = irb.allocate(dtype, (1,), name='dot', scope='local')
-                out_ptr[m*N+n] = tvm.tir.const(0, dtype)
-                dot[0] = tvm.tir.const(0, dtype)
+                out_ptr[m*N+n] = tvm.const(0, dtype)
+                dot[0] = tvm.const(0, dtype)
                 row_start = w_indptr_ptr[n]
                 row_elems = w_indptr_ptr[n+1]-row_start
                 with irb.for_range(0, row_elems, name='k') as k:
@@ -148,12 +147,12 @@ def dense_sw(data, w_data, w_indices, w_indptr, bias=None):
                 out_ptr[m*N+n] += dot[0]
         return irb.get()
     oshape = (M, N)
-    matmul = te.extern(oshape, [data, w_data, w_indices, w_indptr],
-                       lambda ins, outs: dense_default_ir(ins[0], ins[1], ins[2], ins[3], outs[0]),
-                       tag="dense", dtype=dtype, name='out')
+    matmul = tvm.extern(oshape, [data, w_data, w_indices, w_indptr],
+                        lambda ins, outs: dense_default_ir(ins[0], ins[1], ins[2], ins[3], outs[0]),
+                        tag="dense", dtype=dtype, name='out')
     if bias is not None:
-        matmul = te.compute(oshape, lambda i, j: matmul[i, j] + bias[j], \
-                            tag=tag.BROADCAST)
+        matmul = tvm.compute(oshape, lambda i, j: matmul[i, j] + bias[j], \
+                             tag=tag.BROADCAST)
     return matmul
 
 
@@ -163,26 +162,26 @@ def dense(data, weight, bias=None):
 
     Parameters
     ----------
-    data : tvm.contrib.sparse.CSRNDArray or te.tensor.Tensor
+    data : tvm.contrib.sparse.CSRNDArray or tvm.tensor.Tensor
         2-D with shape [batch, in_dim]
 
-    weight : te.tensor.Tensor or tvm.contrib.sparse.CSRNDArray
+    weight : tvm.tensor.Tensor or tvm.contrib.sparse.CSRNDArray
         2-D with shape [out_dim, in_dim]
 
-    bias : te.tensor.Tensor, optional
+    bias : tvm.tensor.Tensor, optional
         1-D with shape [out_dim]
 
     Returns
     -------
-    output : tvm.te.Tensor
+    output : tvm.Tensor
         2-D with shape [batch, out_dim]
     """
     ret = None
     if isinstance(data, tvm.contrib.sparse.CSRPlaceholderOp) and \
-       isinstance(weight, te.tensor.Tensor):
+       isinstance(weight, tvm.tensor.Tensor):
         ret = dense_si(data.data, data.indices, data.indptr, weight, bias)
-    elif isinstance(data, te.tensor.Tensor) and \
-            isinstance(weight, tvm.contrib.sparse.CSRPlaceholderOp):
+    elif isinstance(data, tvm.tensor.Tensor) and \
+       isinstance(weight, tvm.contrib.sparse.CSRPlaceholderOp):
         ret = dense_sw(data, weight.data, weight.indices, weight.indptr, bias)
     else:
         raise NotImplementedError("implementation for %s as data and %s as weights, "

@@ -17,12 +17,11 @@
 """Utility for Interacting with SDAccel Tools"""
 import subprocess
 import os
-
-import tvm._ffi
 from . import util
+from ..api import register_func
 
 
-@tvm._ffi.register_func("tvm_callback_sdaccel_compile")
+@register_func("tvm_callback_sdaccel_compile")
 def compile_vhls(kernel_info, device_name):
     """Compile Vivado HLS code for SDAccel.
 

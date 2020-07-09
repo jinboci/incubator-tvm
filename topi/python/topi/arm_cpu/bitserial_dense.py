@@ -18,30 +18,31 @@
 """Schedule for bitserial dense operator."""
 from __future__ import absolute_import as _abs
 import tvm
-from tvm import te
 from tvm import autotvm
 from topi.util import get_const_tuple
 from .. import tag
+from .. import generic
 from .bitserial_conv2d import _intrin_popcount
 from ..nn.pad import pad
+from ..nn.bitserial_dense import bitserial_dense
 from ..nn.bitserial_util import bitpack, binary_op_multiplier
 
-@autotvm.register_topi_compute('bitserial_dense.arm_cpu')
-def bitserial_dense(cfg, data, weight, data_bits, weight_bits, pack_dtype, out_dtype,
-                    unipolar):
+@autotvm.register_topi_compute(bitserial_dense, ['arm_cpu'], 'direct')
+def bitserial_dense_generic(cfg, data, weight, data_bits, weight_bits, pack_dtype, out_dtype,
+                            unipolar):
     """The default implementation of bitserial dense in topi.
 
     Parameters
     ----------
-    data : tvm.te.Tensor
+    data : tvm.Tensor
         2-D with shape [batch, in_dim]
 
-    weight : tvm.te.Tensor
+    weight : tvm.Tensor
         2-D with shape [out_dim, in_dim]
 
     Returns
     -------
-    output : tvm.te.Tensor
+    output : tvm.Tensor
         2-D with shape [batch, out_dim]
     """
     data_packed = bitpack(data, data_bits, pack_axis=1, bit_axis=1, pack_type=pack_dtype)
@@ -84,23 +85,23 @@ def bitserial_dense(cfg, data, weight, data_bits, weight_bits, pack_dtype, out_d
     wvshape = (out_dim//VY, in_dim//VK, WB, VY, VK)
     oshape = (batch, out_dim)
 
-    k = te.reduce_axis((0, in_dim), name='k')
-    db = te.reduce_axis((0, DB), name='db')
-    wb = te.reduce_axis((0, WB), name='wb')
+    k = tvm.reduce_axis((0, in_dim), name='k')
+    db = tvm.reduce_axis((0, DB), name='db')
+    wb = tvm.reduce_axis((0, WB), name='wb')
 
     # Tile data and weights
-    weight_vec = te.compute(wvshape, lambda yo, ko, wb, vy, vk:
-                            weight_packed[yo*VY+vy][wb][ko*VK+vk], name='weight_vec')
-    matmul_unipolar = te.compute(oshape, lambda x, y: te.sum(
-        (tvm.tir.popcount(weight_vec[y//VY, k//VK, wb, y%VY, k%VK].astype(out_dtype) &
-                          data_packed[x, db, k].astype(out_dtype)) -
-         tvm.tir.popcount(~weight_vec[y//VY, k//VK, wb, y%VY, k%VK].astype(out_dtype) &
-                          data_packed[x, db, k].astype(out_dtype)))
+    weight_vec = tvm.compute(wvshape, lambda yo, ko, wb, vy, vk:
+                             weight_packed[yo*VY+vy][wb][ko*VK+vk], name='weight_vec')
+    matmul_unipolar = tvm.compute(oshape, lambda x, y: tvm.sum(
+        (tvm.popcount(weight_vec[y//VY, k//VK, wb, y%VY, k%VK].astype(out_dtype) &
+                      data_packed[x, db, k].astype(out_dtype)) -
+         tvm.popcount(~weight_vec[y//VY, k//VK, wb, y%VY, k%VK].astype(out_dtype) &
+                      data_packed[x, db, k].astype(out_dtype)))
         << (wb+db).astype(out_dtype), axis=[wb, db, k]), tag='bitserial_dense_unipolar')
 
-    matmul = te.compute(oshape, lambda x, y: te.sum(
-        tvm.tir.popcount(weight_vec[y//VY, k//VK, wb, y%VY, k%VK].astype(out_dtype) &
-                         data_packed[x, db, k].astype(out_dtype))
+    matmul = tvm.compute(oshape, lambda x, y: tvm.sum(
+        tvm.popcount(weight_vec[y//VY, k//VK, wb, y%VY, k%VK].astype(out_dtype) &
+                     data_packed[x, db, k].astype(out_dtype))
         << (wb+db).astype(out_dtype), axis=[wb, db, k]), tag='bitserial_dense')
 
     cfg.add_flop(batch * out_dim * in_dim * binary_op_multiplier(pack_dtype))
@@ -110,7 +111,7 @@ def bitserial_dense(cfg, data, weight, data_bits, weight_bits, pack_dtype, out_d
     return matmul
 
 
-@autotvm.register_topi_schedule('bitserial_dense.arm_cpu')
+@autotvm.register_topi_schedule(generic.nn.schedule_bitserial_dense, ['arm_cpu'], 'direct')
 def schedule_bitserial_dense(cfg, outs):
     """Schedule for binary_dense.
 
@@ -125,8 +126,8 @@ def schedule_bitserial_dense(cfg, outs):
     s: Schedule
         The computation schedule for bitserial_dense.
     """
-    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
-    s = te.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    s = tvm.create_schedule([x.op for x in outs])
 
     def _schedule(cfg, s, data_vec, weight_vec, output, unipolar):
 
@@ -163,7 +164,7 @@ def schedule_bitserial_dense(cfg, outs):
             if op not in s.outputs:
                 s[op].compute_inline()
             for tensor in op.input_tensors:
-                if isinstance(tensor.op, tvm.te.ComputeOp):
+                if isinstance(tensor.op, tvm.tensor.ComputeOp):
                     traverse(tensor.op)
 
         elif op.tag == 'bitserial_dense' or 'bitserial_dense_unipolar':

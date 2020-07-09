@@ -27,11 +27,6 @@ use super::Module;
 
 pub struct SystemLibModule;
 
-#[cfg(target_env = "sgx")]
-extern "C" {
-    fn __tvm_module_startup();
-}
-
 lazy_static! {
     static ref SYSTEM_LIB_FUNCTIONS: Mutex<HashMap<String, &'static (dyn PackedFunc)>> =
         Mutex::new(HashMap::new());
@@ -43,16 +38,12 @@ impl Module for SystemLibModule {
             .lock()
             .unwrap()
             .get(name.as_ref())
-            .copied()
+            .map(|f| *f)
     }
 }
 
 impl Default for SystemLibModule {
     fn default() -> Self {
-        #[cfg(target_env = "sgx")]
-        unsafe {
-            __tvm_module_startup();
-        }
         SystemLibModule {}
     }
 }
@@ -67,5 +58,5 @@ pub extern "C" fn TVMBackendRegisterSystemLibSymbol(
         name.to_string(),
         &*Box::leak(super::wrap_backend_packed_func(name.to_string(), func)),
     );
-    0
+    return 0;
 }

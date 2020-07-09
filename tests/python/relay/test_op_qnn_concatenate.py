@@ -16,7 +16,6 @@
 # under the License.
 
 import tvm
-from tvm import te
 import numpy as np
 from tvm import relay
 from tvm.contrib import graph_runtime
@@ -41,7 +40,7 @@ def test_same_io_qnn_params():
                                  axis=axis)
 
     func = relay.Function([x, y], z)
-    mod = tvm.IRModule.from_expr(func)
+    mod = relay.Module.from_expr(func)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 
@@ -72,7 +71,7 @@ def test_different_io_qnn_params():
                                  axis=axis)
 
     func = relay.Function([x, y], z)
-    mod = tvm.IRModule.from_expr(func)
+    mod = relay.Module.from_expr(func)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 
@@ -103,7 +102,7 @@ def test_few_same_io_qnn_params():
                                  axis=axis)
 
     func = relay.Function([x, y], z)
-    mod = tvm.IRModule.from_expr(func)
+    mod = relay.Module.from_expr(func)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 
@@ -134,7 +133,7 @@ def test_same_i_qnn_params():
                                  axis=axis)
 
     func = relay.Function([x, y], z)
-    mod = tvm.IRModule.from_expr(func)
+    mod = relay.Module.from_expr(func)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 
@@ -144,32 +143,7 @@ def test_same_i_qnn_params():
     op_res = intrp.evaluate(func)(x_data, y_data)
     np.testing.assert_equal(op_res.asnumpy(), golden_output)
 
-def test_call_input():
-    # This tests the case where the input to concatenate is not explicitly a
-    # tuple node but is instead a call node.
-    x_data = np.ones(shape=(64,)).astype('uint8')
-
-    x = relay.var("x", shape=(64,), dtype='uint8')
-    x_scale = relay.const(1, 'float32')
-    y_scale = relay.const(1, 'float32')
-    x_zero_point = relay.const(0, 'int32')
-    y_zero_point = relay.const(0, 'int32')
-
-    tup = relay.split(x, 2, axis=0)
-    z = relay.qnn.op.concatenate(tup,
-                                 input_scales=(x_scale, y_scale),
-                                 input_zero_points=(x_zero_point, y_zero_point),
-                                 output_scale=y_scale,
-                                 output_zero_point=relay.const(0, 'int32'),
-                                 axis=0)
-    func = relay.Function([x], z)
-
-    intrp = relay.create_executor("graph", ctx=tvm.cpu(0), target="llvm")
-    op_res = intrp.evaluate(func)(x_data)
-    np.testing.assert_equal(op_res.asnumpy(), x_data)
-
 if __name__ == '__main__':
-    test_call_input()
     test_same_io_qnn_params()
     test_different_io_qnn_params()
     test_few_same_io_qnn_params()

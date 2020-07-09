@@ -15,8 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """TVM operator upsampling compute."""
+from __future__ import absolute_import
 import topi
-from tvm import te
+import tvm
 from ..util import simplify
 
 
@@ -27,7 +28,7 @@ def upsampling(data, scale_h, scale_w, layout="NCHW", method='nearest_neighbor',
 
     Parameters
     ----------
-    inputs : tvm.te.Tensor
+    inputs : tvm.Tensor
         inputs is a 4-D tensor with shape
         [batch, channel, in_height, in_width]
         or  [batch, in_height, in_width, channel]
@@ -46,17 +47,17 @@ def upsampling(data, scale_h, scale_w, layout="NCHW", method='nearest_neighbor',
 
     Returns
     -------
-    output : tvm.te.Tensor
+    output : tvm.Tensor
         4-D with shape [batch, channel, in_height*scale_h, in_width*scale_w]
         or [batch, in_height*scale, in_width*scale, channel]
     """
     base_layout = layout[0:4]
     if base_layout == "NCHW":
-        out_shape = (simplify(topi.cast(te.round(data.shape[2] * scale_h), data.shape[2].dtype)),
-                     simplify(topi.cast(te.round(data.shape[3] * scale_w), data.shape[3].dtype)))
+        out_shape = (simplify(topi.cast(tvm.round(data.shape[2] * scale_h), data.shape[2].dtype)),
+                     simplify(topi.cast(tvm.round(data.shape[3] * scale_w), data.shape[3].dtype)))
     elif layout == "NHWC":
-        out_shape = (simplify(topi.cast(te.round(data.shape[1] * scale_h), data.shape[1].dtype)),
-                     simplify(topi.cast(te.round(data.shape[2] * scale_w), data.shape[2].dtype)))
+        out_shape = (simplify(topi.cast(tvm.round(data.shape[1] * scale_h), data.shape[1].dtype)),
+                     simplify(topi.cast(tvm.round(data.shape[2] * scale_w), data.shape[2].dtype)))
 
     else:
         raise ValueError("not support this layout {} yet".format(layout))
@@ -72,7 +73,7 @@ def upsampling3d(data, scale_d, scale_h, scale_w, layout="NCDHW", method='neares
 
     Parameters
     ----------
-    inputs : tvm.te.Tensor
+    inputs : tvm.Tensor
         inputs is a 5-D tensor with shape
         [batch, channel, in_depth, in_height, in_width]
         or  [batch, in_depth, in_height, in_width, channel]
@@ -100,19 +101,19 @@ def upsampling3d(data, scale_d, scale_h, scale_w, layout="NCDHW", method='neares
 
     Returns
     -------
-    output : tvm.te.Tensor
+    output : tvm.Tensor
         5-D with shape [batch, channel, in_depth*scale, in_height*scale, in_width*scale]
         or [batch, in_depth*scale, in_height*scale, in_width*scale, channel]
     """
     base_layout = layout[0:5]
     if base_layout == "NCDHW":
-        out_shape = (simplify(topi.cast(te.round(data.shape[2] * scale_d), data.shape[2].dtype)),
-                     simplify(topi.cast(te.round(data.shape[3] * scale_h), data.shape[3].dtype)),
-                     simplify(topi.cast(te.round(data.shape[4] * scale_w), data.shape[4].dtype)))
+        out_shape = (simplify(topi.cast(tvm.round(data.shape[2] * scale_d), data.shape[2].dtype)),
+                     simplify(topi.cast(tvm.round(data.shape[3] * scale_h), data.shape[3].dtype)),
+                     simplify(topi.cast(tvm.round(data.shape[4] * scale_w), data.shape[4].dtype)))
     elif layout == "NDHWC":
-        out_shape = (simplify(topi.cast(te.round(data.shape[1] * scale_d), data.shape[1].dtype)),
-                     simplify(topi.cast(te.round(data.shape[2] * scale_h), data.shape[2].dtype)),
-                     simplify(topi.cast(te.round(data.shape[3] * scale_w), data.shape[3].dtype)))
+        out_shape = (simplify(topi.cast(tvm.round(data.shape[1] * scale_d), data.shape[1].dtype)),
+                     simplify(topi.cast(tvm.round(data.shape[2] * scale_h), data.shape[2].dtype)),
+                     simplify(topi.cast(tvm.round(data.shape[3] * scale_w), data.shape[3].dtype)))
 
     else:
         raise ValueError("not support this layout {} yet".format(layout))

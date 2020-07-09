@@ -16,22 +16,24 @@
 # under the License.
 # pylint: disable=invalid-name, unused-variable, unused-argument
 """Transposed 1D convolution operators (sometimes called Deconvolution)."""
-from tvm import te
+from __future__ import absolute_import as _abs
+import tvm
 from .dilate import dilate
 from .pad import pad
 from ..util import simplify
 from .util import get_pad_tuple1d
 
 
+@tvm.target.generic_func
 def conv1d_transpose_ncw(data, kernel, stride, padding, out_dtype):
     """Transposed 1D convolution ncw forward operator.
 
     Parameters
     ----------
-    data : tvm.te.Tensor
+    data : tvm.Tensor
         3-D with shape [batch, in_channel, in_width]
 
-    kernel : tvm.te.Tensor
+    kernel : tvm.Tensor
         3-D with shape [in_channel, num_filter, filter_width]
 
     stride : ints
@@ -45,7 +47,7 @@ def conv1d_transpose_ncw(data, kernel, stride, padding, out_dtype):
 
     Returns
     -------
-    output : tvm.te.Tensor
+    output : tvm.Tensor
         3-D with shape [batch, out_channel, out_width]
     """
 
@@ -62,18 +64,18 @@ def conv1d_transpose_ncw(data, kernel, stride, padding, out_dtype):
     data = pad(data, [0, 0, pad_left], [0, 0, pad_right], name='data_pad')
 
     # transpose kernel, switch kernel layout to IOW
-    kernel = te.compute((channels_out, channels_in, kernel_width), \
-                        lambda o, i, w: kernel[i][o][kernel_width-1-w],\
-                        name='kernel')
+    kernel = tvm.compute((channels_out, channels_in, kernel_width), \
+                         lambda o, i, w: kernel[i][o][kernel_width-1-w],\
+                         name='kernel')
 
     # convolution
     _, _, data_width = data.shape
     out_w = simplify(data_width - kernel_width + 1)
-    dc = te.reduce_axis((0, channels_in), name='dc')
-    dw = te.reduce_axis((0, kernel_width), name='dw')
-    output = te.compute(
+    dc = tvm.reduce_axis((0, channels_in), name='dc')
+    dw = tvm.reduce_axis((0, kernel_width), name='dw')
+    output = tvm.compute(
         (batch, channels_out, out_w),
-        lambda b, c, w: te.sum(
+        lambda b, c, w: tvm.sum(
             data[b, dc, w+dw].astype(out_dtype) *
             kernel[c, dc, dw].astype(out_dtype),
             axis=[dc, dw]), tag="conv1d_transpose_ncw")

@@ -48,4 +48,3 @@ Here are guidelines for contributing to various aspect of the project:
    error_handling
    pull_request
    git_howto
-   release_process

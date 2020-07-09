@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
 from tvm import relay
 from tvm.relay.analysis import (free_vars, free_type_vars,
                                 bound_vars, bound_type_vars,
@@ -83,7 +82,7 @@ def test_bound_vars():
 
 
 def test_match_vars():
-    mod = tvm.IRModule()
+    mod = relay.Module()
     p = relay.prelude.Prelude(mod)
 
     x = relay.Var('x')

@@ -16,20 +16,19 @@
 # under the License.
 import numpy as np
 import tvm
-from tvm import te
 from tvm import relay
-from tvm.relay.analysis import detect_feature
+from tvm.relay.analysis import alpha_equal, detect_feature
 from tvm.relay import op, create_executor, transform
 from tvm.relay.prelude import Prelude
 from tvm.relay.testing import add_nat_definitions, count
-from tvm.relay.analysis import Feature
+from tvm.relay.feature import Feature
 
 
 def run_opt_pass(expr, passes):
     passes = passes if isinstance(passes, list) else [passes]
-    mod = tvm.IRModule.from_expr(expr)
-    seq = tvm.transform.Sequential(passes)
-    with tvm.transform.PassContext(opt_level=3):
+    mod = relay.Module.from_expr(expr)
+    seq = transform.Sequential(passes)
+    with transform.PassContext(opt_level=3):
        mod = seq(mod)
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body
@@ -76,7 +75,7 @@ def test_order():
     expected_output = relay.Let(b, y, expected_output)
     expected_output = relay.Let(a, x, expected_output)
     expected_output = run_opt_pass(expected_output, transform.InferType())
-    assert tvm.ir.structural_equal(anf, expected_output)
+    assert alpha_equal(anf, expected_output)
 
 
 def test_if():
@@ -93,7 +92,7 @@ def test_if():
     expected_output = relay.Let(d, expected_output, d)
     expected_output = relay.Let(c, cond, expected_output)
     expected_output = run_opt_pass(expected_output, transform.InferType())
-    assert tvm.ir.structural_equal(anf, expected_output)
+    assert alpha_equal(anf, expected_output)
 
 
 # make sure we dont infinite loop.
@@ -111,7 +110,7 @@ def test_recursion():
        }
        f(5);
     """
-    mod = tvm.IRModule()
+    mod = relay.Module()
     i64 = relay.TensorType((), 'int64')
     f = relay.GlobalVar("f")
     n = relay.Var("n", i64)
@@ -144,7 +143,7 @@ def test_ref():
 
 
 def test_nat_add():
-    mod = tvm.IRModule()
+    mod = relay.Module()
     p = Prelude(mod)
     add_nat_definitions(p)
     nat = p.nat
@@ -193,7 +192,7 @@ def test_gradient_if():
     net = relay.If(cond, x, x)
     net = relay.add(x, net)
     net = relay.Function([cond,x,y], net)
-    mod = tvm.IRModule.from_expr(net)
+    mod = relay.Module.from_expr(net)
     mod = relay.transform.ToANormalForm()(mod)
     mod["main"] = relay.transform.gradient(mod["main"], mode='higher_order')
     mod = relay.transform.ToANormalForm()(mod)

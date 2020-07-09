@@ -15,8 +15,6 @@
     specific language governing permissions and limitations
     under the License.
 
-.. _installation:
-
 Installation
 ============
 To install TVM, please read :ref:`install-from-source`.

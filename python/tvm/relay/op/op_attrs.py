@@ -15,501 +15,315 @@
 # specific language governing permissions and limitations
 # under the License.
 """The attributes node used for Relay operators"""
-from tvm.ir import Attrs
-import tvm._ffi
+
+from ...attrs import Attrs
+from ..base import register_relay_attr_node
 
 
-@tvm._ffi.register_object("relay.attrs.Conv1DAttrs")
+@register_relay_attr_node
 class Conv1DAttrs(Attrs):
     """Attributes for nn.conv1d"""
 
 
-@tvm._ffi.register_object("relay.attrs.Conv2DAttrs")
+@register_relay_attr_node
 class Conv2DAttrs(Attrs):
     """Attributes for nn.conv2d"""
 
 
-@tvm._ffi.register_object("relay.attrs.Conv2DWinogradAttrs")
+@register_relay_attr_node
 class Conv2DWinogradAttrs(Attrs):
     """Attributes for nn.contrib_conv2d_winograd_without_weight_transform"""
 
 
-@tvm._ffi.register_object("relay.attrs.Conv3DAttrs")
-class Conv3DAttrs(Attrs):
-    """Attributes for nn.conv3d"""
+@register_relay_attr_node
+class Conv2DWinogradWeightTransformAttrs(Attrs):
+    """Attributes for nn.contrib_conv2d_winograd_weight_transform"""
 
 
-@tvm._ffi.register_object("relay.attrs.Conv3DWinogradAttrs")
-class Conv3DWinogradAttrs(Attrs):
-    """Attributes for nn.contrib_conv3d_winograd_without_weight_transform"""
-
-
-@tvm._ffi.register_object("relay.attrs.ConvWinogradWeightTransformAttrs")
-class ConvWinogradWeightTransformAttrs(Attrs):
-    """Attributes for nn.contrib_convNd_winograd_weight_transform"""
-
-
-@tvm._ffi.register_object("relay.attrs.Conv2DWinogradNNPACKWeightTransformAttrs")
+@register_relay_attr_node
 class Conv2DWinogradNNPACKWeightTransformAttrs(Attrs):
     """Attributes for nn.contrib_conv2d_winograd_nnpack_weight_transform"""
 
 
-@tvm._ffi.register_object("relay.attrs.GlobalPool2DAttrs")
+@register_relay_attr_node
 class GlobalPool2DAttrs(Attrs):
     """Attributes for nn.global_pool"""
 
 
-@tvm._ffi.register_object("relay.attrs.BiasAddAttrs")
+@register_relay_attr_node
 class BiasAddAttrs(Attrs):
     """Atttribute of nn.bias_add"""
 
 
-@tvm._ffi.register_object("relay.attrs.DenseAttrs")
+@register_relay_attr_node
 class DenseAttrs(Attrs):
     """Attributes for nn.dense"""
 
 
-@tvm._ffi.register_object("relay.attrs.SoftmaxAttrs")
-class SoftmaxAttrs(Attrs):
-    """Attributes for nn.softmax"""
-
-
-@tvm._ffi.register_object("relay.attrs.FIFOBufferAttrs")
+@register_relay_attr_node
 class FIFOBufferAttrs(Attrs):
     """Attributes for nn.fifo_buffer"""
 
 
-@tvm._ffi.register_object("relay.attrs.UpSamplingAttrs")
+@register_relay_attr_node
 class UpSamplingAttrs(Attrs):
     """Attributes for nn.upsampling"""
 
-@tvm._ffi.register_object("relay.attrs.UpSampling3DAttrs")
+@register_relay_attr_node
 class UpSampling3DAttrs(Attrs):
     """Attributes for nn.upsampling3d"""
 
-@tvm._ffi.register_object("relay.attrs.PadAttrs")
+@register_relay_attr_node
 class PadAttrs(Attrs):
     """Attributes for nn.pad"""
 
-@tvm._ffi.register_object("relay.attrs.MirrorPadAttrs")
+@register_relay_attr_node
 class MirrorPadAttrs(Attrs):
     """Attributes for nn.mirror_pad"""
 
-@tvm._ffi.register_object("relay.attrs.LeakyReluAttrs")
+@register_relay_attr_node
 class LeakyReluAttrs(Attrs):
     """Attributes for nn.leaky_relu"""
 
 
-@tvm._ffi.register_object("relay.attrs.PReluAttrs")
+@register_relay_attr_node
 class PReluAttrs(Attrs):
     """Attributes for nn.prelu"""
 
 
-@tvm._ffi.register_object("relay.attrs.DropoutAttrs")
+@register_relay_attr_node
 class DropoutAttrs(Attrs):
     """Attributes for nn.dropout"""
 
 
-@tvm._ffi.register_object("relay.attrs.BatchNormAttrs")
+@register_relay_attr_node
 class BatchNormAttrs(Attrs):
     """Attributes for nn.batch_norm"""
 
 
-@tvm._ffi.register_object("relay.attrs.LRNAttrs")
+@register_relay_attr_node
 class LRNAttrs(Attrs):
     """Attributes for nn.lrn"""
 
 
-@tvm._ffi.register_object("relay.attrs.L2NormalizeAttrs")
+@register_relay_attr_node
 class L2NormalizeAttrs(Attrs):
     """Attributes for nn.l2_normalize"""
 
 
-@tvm._ffi.register_object("relay.attrs.DeformableConv2DAttrs")
+@register_relay_attr_node
 class DeformableConv2DAttrs(Attrs):
     """Attributes for nn.deformable_conv2d"""
 
 
-@tvm._ffi.register_object("relay.attrs.ResizeAttrs")
+@register_relay_attr_node
 class ResizeAttrs(Attrs):
     """Attributes for image.resize"""
 
-
-@tvm._ffi.register_object("relay.attrs.CropAndResizeAttrs")
+@register_relay_attr_node
 class CropAndResizeAttrs(Attrs):
     """Attributes for image.crop_and_resize"""
 
-
-@tvm._ffi.register_object("relay.attrs.Dilation2DAttrs")
-class Dilation2DAttrs(Attrs):
-    """Attributes for image.dilation2d"""
-
-
-@tvm._ffi.register_object("relay.attrs.ArgsortAttrs")
+@register_relay_attr_node
 class ArgsortAttrs(Attrs):
     """Attributes for algorithm.argsort"""
 
 
-@tvm._ffi.register_object("relay.attrs.OnDeviceAttrs")
+@register_relay_attr_node
 class OnDeviceAttrs(Attrs):
     """Attributes for annotation.on_device"""
 
 
-@tvm._ffi.register_object("relay.attrs.DebugAttrs")
+@register_relay_attr_node
 class DebugAttrs(Attrs):
     """Attributes for debug"""
 
 
-@tvm._ffi.register_object("relay.attrs.CompilerAttrs")
-class CompilerAttrs(Attrs):
-    """Attributes for compiler"""
-
-
-@tvm._ffi.register_object("relay.attrs.DeviceCopyAttrs")
+@register_relay_attr_node
 class DeviceCopyAttrs(Attrs):
-    """Attributes for annotation.device_copy"""
+    """Attributes for tensor.device_copy"""
 
 
-@tvm._ffi.register_object("relay.attrs.CastAttrs")
+@register_relay_attr_node
 class CastAttrs(Attrs):
     """Attributes for transform.cast"""
 
 
-@tvm._ffi.register_object("relay.attrs.ConcatenateAttrs")
+@register_relay_attr_node
 class ConcatenateAttrs(Attrs):
     """Attributes for tensor.concatenate"""
 
 
-@tvm._ffi.register_object("relay.attrs.TransposeAttrs")
+@register_relay_attr_node
 class TransposeAttrs(Attrs):
     """Attributes for transform.transpose"""
 
 
-@tvm._ffi.register_object("relay.attrs.ReshapeAttrs")
+@register_relay_attr_node
 class ReshapeAttrs(Attrs):
     """Attributes for transform.reshape"""
 
-@tvm._ffi.register_object("relay.attrs.GatherAttrs")
-class GatherAttrs(Attrs):
-    """Attributes for transform.gather"""
 
-@tvm._ffi.register_object("relay.attrs.TakeAttrs")
+@register_relay_attr_node
 class TakeAttrs(Attrs):
     """Attributes for transform.take"""
 
 
-@tvm._ffi.register_object("relay.attrs.InitOpAttrs")
+@register_relay_attr_node
 class InitOpAttrs(Attrs):
     """Attributes for ops specifying a tensor"""
 
 
-@tvm._ffi.register_object("relay.attrs.ArangeAttrs")
+@register_relay_attr_node
 class ArangeAttrs(Attrs):
     """Attributes used in arange operators"""
 
 
-@tvm._ffi.register_object("relay.attrs.StackAttrs")
+@register_relay_attr_node
 class StackAttrs(Attrs):
     """Attributes used in stack operators"""
 
 
-@tvm._ffi.register_object("relay.attrs.RepeatAttrs")
+@register_relay_attr_node
 class RepeatAttrs(Attrs):
     """Attributes used in repeat operators"""
 
 
-@tvm._ffi.register_object("relay.attrs.TileAttrs")
+@register_relay_attr_node
 class TileAttrs(Attrs):
     """Attributes used in tile operators"""
 
 
-@tvm._ffi.register_object("relay.attrs.ReverseAttrs")
+@register_relay_attr_node
 class ReverseAttrs(Attrs):
     """Attributes used in reverse operators"""
 
-@tvm._ffi.register_object("relay.attrs.ReverseSequenceAttrs")
-class ReverseSequenceAttrs(Attrs):
-    """Attributes used in reverse sequence operators"""
 
-
-@tvm._ffi.register_object("relay.attrs.SqueezeAttrs")
+@register_relay_attr_node
 class SqueezeAttrs(Attrs):
     """Attributes used in squeeze operators"""
 
 
-@tvm._ffi.register_object("relay.attrs.SplitAttrs")
+@register_relay_attr_node
 class SplitAttrs(Attrs):
     """Attributes for transform.split"""
 
 
-@tvm._ffi.register_object("relay.attrs.StridedSliceAttrs")
+@register_relay_attr_node
 class StridedSliceAttrs(Attrs):
     """Attributes for transform.stranded_slice"""
 
 
-@tvm._ffi.register_object("relay.attrs.SliceLikeAttrs")
+@register_relay_attr_node
 class SliceLikeAttrs(Attrs):
     """Attributes for transform.slice_like"""
 
 
-@tvm._ffi.register_object("relay.attrs.ClipAttrs")
+@register_relay_attr_node
 class ClipAttrs(Attrs):
     """Attributes for transform.clip"""
 
 
-@tvm._ffi.register_object("relay.attrs.LayoutTransformAttrs")
+@register_relay_attr_node
 class LayoutTransformAttrs(Attrs):
     """Attributes for transform.layout_transform"""
 
 
-@tvm._ffi.register_object("relay.attrs.ShapeOfAttrs")
+@register_relay_attr_node
 class ShapeOfAttrs(Attrs):
     """Attributes for tensor.shape_of"""
 
 
-@tvm._ffi.register_object("relay.attrs.MultiBoxPriorAttrs")
+@register_relay_attr_node
 class MultiBoxPriorAttrs(Attrs):
     """Attributes for vision.multibox_prior"""
 
 
-@tvm._ffi.register_object("relay.attrs.MultiBoxTransformLocAttrs")
+@register_relay_attr_node
 class MultiBoxTransformLocAttrs(Attrs):
     """Attributes for vision.multibox_transform_loc"""
 
 
-@tvm._ffi.register_object("relay.attrs.GetValidCountsAttrs")
+@register_relay_attr_node
 class GetValidCountsAttrs(Attrs):
     """Attributes for vision.get_valid_counts"""
 
 
-@tvm._ffi.register_object("relay.attrs.NonMaximumSuppressionAttrs")
+@register_relay_attr_node
 class NonMaximumSuppressionAttrs(Attrs):
     """Attributes for vision.non_maximum_suppression"""
 
 
-@tvm._ffi.register_object("relay.attrs.ROIAlignAttrs")
+@register_relay_attr_node
 class ROIAlignAttrs(Attrs):
     """Attributes for vision.roi_align"""
 
 
-@tvm._ffi.register_object("relay.attrs.ROIPoolAttrs")
+@register_relay_attr_node
 class ROIPoolAttrs(Attrs):
     """Attributes for vision.roi_pool"""
 
 
-@tvm._ffi.register_object("relay.attrs.YoloReorgAttrs")
+@register_relay_attr_node
 class YoloReorgAttrs(Attrs):
     """Attributes for vision.yolo_reorg"""
 
 
-@tvm._ffi.register_object("relay.attrs.ProposalAttrs")
+@register_relay_attr_node
 class ProposalAttrs(Attrs):
     """Attributes used in proposal operators"""
 
 
-@tvm._ffi.register_object("relay.attrs.MaxPool2DAttrs")
+@register_relay_attr_node
 class MaxPool2DAttrs(Attrs):
     """Attributes used in max_pool2d operators"""
 
 
-@tvm._ffi.register_object("relay.attrs.AvgPool2DAttrs")
+@register_relay_attr_node
 class AvgPool2DAttrs(Attrs):
     """Attributes used in avg_pool2d operators"""
 
 
-@tvm._ffi.register_object("relay.attrs.MaxPool1DAttrs")
+@register_relay_attr_node
 class MaxPool1DAttrs(Attrs):
     """Attributes used in max_pool1d operators"""
 
 
-@tvm._ffi.register_object("relay.attrs.AvgPool1DAttrs")
+@register_relay_attr_node
 class AvgPool1DAttrs(Attrs):
     """Attributes used in avg_pool1d operators"""
 
 
-@tvm._ffi.register_object("relay.attrs.MaxPool3DAttrs")
+@register_relay_attr_node
 class MaxPool3DAttrs(Attrs):
     """Attributes used in max_pool3d operators"""
 
 
-@tvm._ffi.register_object("relay.attrs.AvgPool3DAttrs")
+@register_relay_attr_node
 class AvgPool3DAttrs(Attrs):
     """Attributes used in avg_pool3d operators"""
 
 
-@tvm._ffi.register_object("relay.attrs.BitPackAttrs")
+@register_relay_attr_node
 class BitPackAttrs(Attrs):
     """Attributes used in bitpack operator"""
 
 
-@tvm._ffi.register_object("relay.attrs.BinaryConv2DAttrs")
+@register_relay_attr_node
 class BinaryConv2DAttrs(Attrs):
     """Attributes used in bitserial conv2d operators"""
 
 
-@tvm._ffi.register_object("relay.attrs.BinaryDenseAttrs")
+@register_relay_attr_node
 class BinaryDenseAttrs(Attrs):
     """Attributes used in bitserial dense operators"""
 
 
-@tvm._ffi.register_object("relay.attrs.Conv2DTransposeAttrs")
+@register_relay_attr_node
 class Conv2DTransposeAttrs(Attrs):
     """Attributes used in Transposed Conv2D operators"""
 
-@tvm._ffi.register_object("relay.attrs.Conv3DTransposeAttrs")
-class Conv3DTransposeAttrs(Attrs):
-    """Attributes used in Transposed Conv3D operators"""
 
-@tvm._ffi.register_object("relay.attrs.DilateAttrs")
-class DilateAttrs(Attrs):
-    """Attributes used in dilate operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.SubPixelAttrs")
+@register_relay_attr_node
 class SubPixelAttrs(Attrs):
     """Attributes used in depth to space and space to depth operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.CorrelationAttrs")
-class CorrelationAttrs(Attrs):
-    """Attributes used in correlation operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.AdaptivePool2DAttrs")
-class AdaptivePool2DAttrs(Attrs):
-    """Attributes used in 2D adaptive pooling operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.AdaptivePool3DAttrs")
-class AdaptivePool3DAttrs(Attrs):
-    """Attributes used in 3D adaptive pooling operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.AffineGridAttrs")
-class AffineGridAttrs(Attrs):
-    """Attributes used in affine_grid operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.AllocStorageAttrs")
-class AllocStorageAttrs(Attrs):
-    """Attributes used in alloc_storage operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.AllocTensorAttrs")
-class AllocTensorAttrs(Attrs):
-    """Attributes used in alloc_tensor operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.CastHintAttrs")
-class CastHintAttrs(Attrs):
-    """Attributes used in cast_hint annotation operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.Conv1DTransposeAttrs")
-class Conv1DTransposeAttrs(Attrs):
-    """Attributes used in 1D transposed convolution operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.ExpandDimsAttrs")
-class ExpandDimsAttrs(Attrs):
-    """Attributes used in expand_dims operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.GridSampleAttrs")
-class GridSampleAttrs(Attrs):
-    """Attributes used in grid_sample operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.GroupNormAttrs")
-class GroupNormAttrs(Attrs):
-    """Attributes used in group norm operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.InstanceNormAttrs")
-class InstanceNormAttrs(Attrs):
-    """Attributes used in instance norm operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.LayerNormAttrs")
-class LayerNormAttrs(Attrs):
-    """Attributes used in layer norm operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.NdarraySizeAttrs")
-class NdarraySizeAttrs(Attrs):
-    """Attributes used in ndarray_size operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.OneHotAttrs")
-class OneHotAttrs(Attrs):
-    """Attributes used in one_hot operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.QuantizeAttrs")
-class QuantizeAttrs(Attrs):
-    """Attributes used in quantize operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.ReduceAttrs")
-class ReduceAttrs(Attrs):
-    """Attributes used in reduction operators (e.g. sum)"""
-
-
-@tvm._ffi.register_object("relay.attrs.RequantizeAttrs")
-class RequantizeAttrs(Attrs):
-    """Attributes used in requantize operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.Resize3dAttrs")
-class Resize3dAttrs(Attrs):
-    """Attributes used in resize3d operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.ScatterAttrs")
-class ScatterAttrs(Attrs):
-    """Attributes used in scatter operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.SequenceMaskAttrs")
-class SequenceMaskAttrs(Attrs):
-    """Attributes used in sequence_mask operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.ShapeFuncAttrs")
-class ShapeFuncAttrs(Attrs):
-    """Attributes used in shape func operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.SimulatedQuantizeAttrs")
-class SimulatedQuantizeAttrs(Attrs):
-    """Attributes used in simulated_quantize operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.SparseDenseAttrs")
-class SparseDenseAttrs(Attrs):
-    """Attributes used in sparse_dense operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.SparseToDenseAttrs")
-class SparseToDenseAttrs(Attrs):
-    """Attributes used in sparse_to_dense operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.SparseTransposeAttrs")
-class SparseTransposeAttrs(Attrs):
-    """Attributes used in sparse_transpose operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.TopkAttrs")
-class TopkAttrs(Attrs):
-    """Attributes used in topk operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.TupleGetItemAttrs")
-class TupleGetItemAttrs(Attrs):
-    """Attributes used in tuple item access operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.WithFuncIdAttrs")
-class WithFuncIdAttrs(Attrs):
-    """Attributes used in with_funcid annotation operators"""

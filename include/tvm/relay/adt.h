@@ -24,15 +24,13 @@
 #ifndef TVM_RELAY_ADT_H_
 #define TVM_RELAY_ADT_H_
 
-#include <tvm/ir/adt.h>
 #include <tvm/ir/attrs.h>
-#include <tvm/relay/base.h>
-#include <tvm/relay/expr.h>
-#include <tvm/relay/type.h>
-
-#include <functional>
+#include <tvm/ir/adt.h>
 #include <string>
-#include <utility>
+#include <functional>
+#include "./base.h"
+#include "./type.h"
+#include "./expr.h"
 
 namespace tvm {
 namespace relay {
@@ -47,8 +45,6 @@ using TypeDataNode = tvm::TypeDataNode;
 class PatternNode : public RelayNode {
  public:
   static constexpr const char* _type_key = "relay.Pattern";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_BASE_OBJECT_INFO(PatternNode, Object);
 };
 
@@ -73,11 +69,13 @@ class PatternWildcard;
 /*! \brief PatternWildcard container node */
 class PatternWildcardNode : public PatternNode {
  public:
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("span", &span); }
+  PatternWildcardNode() {}
 
-  bool SEqualReduce(const PatternNode* other, SEqualReducer equal) const { return true; }
+  TVM_DLL static PatternWildcard make();
 
-  void SHashReduce(SHashReducer hash_reduce) const {}
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("span", &span);
+  }
 
   static constexpr const char* _type_key = "relay.PatternWildcard";
   TVM_DECLARE_FINAL_OBJECT_INFO(PatternWildcardNode, PatternNode);
@@ -85,29 +83,7 @@ class PatternWildcardNode : public PatternNode {
 
 class PatternWildcard : public Pattern {
  public:
-  /* \brief Overload the default constructors. */
-  TVM_DLL PatternWildcard();
-  explicit PatternWildcard(ObjectPtr<Object> n) : Pattern(n) {}
-  /* \brief Copy constructor. */
-  PatternWildcard(const PatternWildcard& pat) : PatternWildcard(pat.data_) {}
-  /* \brief Move constructor. */
-  PatternWildcard(PatternWildcard&& pat) : PatternWildcard(std::move(pat.data_)) {}
-  /* \brief Copy assignment. */
-  PatternWildcard& operator=(const PatternWildcard& other) {
-    (*this).data_ = other.data_;
-    return *this;
-  }
-  /* \brief Move assignment. */
-  PatternWildcard& operator=(PatternWildcard&& other) {
-    (*this).data_ = std::move(other.data_);
-    return *this;
-  }
-
-  const PatternWildcardNode* operator->() const {
-    return static_cast<const PatternWildcardNode*>(get());
-  }
-
-  using ContainerType = PatternWildcardNode;
+  TVM_DEFINE_OBJECT_REF_METHODS(PatternWildcard, Pattern, PatternWildcardNode);
 };
 
 /*! \brief A var pattern. Accept all input and bind to a var. */
@@ -115,19 +91,17 @@ class PatternVar;
 /*! \brief PatternVar container node */
 class PatternVarNode : public PatternNode {
  public:
+  PatternVarNode() {}
+
   /*! \brief Variable that stores the matched value. */
   tvm::relay::Var var;
+
+  TVM_DLL static PatternVar make(tvm::relay::Var var);
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("var", &var);
     v->Visit("span", &span);
   }
-
-  bool SEqualReduce(const PatternVarNode* other, SEqualReducer equal) const {
-    return equal.DefEqual(var, other->var);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce.DefHash(var); }
 
   static constexpr const char* _type_key = "relay.PatternVar";
   TVM_DECLARE_FINAL_OBJECT_INFO(PatternVarNode, PatternNode);
@@ -135,12 +109,6 @@ class PatternVarNode : public PatternNode {
 
 class PatternVar : public Pattern {
  public:
-  /*!
-   * \brief Constructor
-   * \param var The var to construct a pattern
-   */
-  TVM_DLL explicit PatternVar(tvm::relay::Var var);
-
   TVM_DEFINE_OBJECT_REF_METHODS(PatternVar, Pattern, PatternVarNode);
 };
 
@@ -154,19 +122,14 @@ class PatternConstructorNode : public PatternNode {
   /*! Sub-patterns to match against each input to the constructor. */
   tvm::Array<Pattern> patterns;
 
+  PatternConstructorNode() {}
+
+  TVM_DLL static PatternConstructor make(Constructor constructor, tvm::Array<Pattern> var);
+
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("constructor", &constructor);
     v->Visit("patterns", &patterns);
     v->Visit("span", &span);
-  }
-
-  bool SEqualReduce(const PatternConstructorNode* other, SEqualReducer equal) const {
-    return equal(constructor, other->constructor) && equal(patterns, other->patterns);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(constructor);
-    hash_reduce(patterns);
   }
 
   static constexpr const char* _type_key = "relay.PatternConstructor";
@@ -175,13 +138,6 @@ class PatternConstructorNode : public PatternNode {
 
 class PatternConstructor : public Pattern {
  public:
-  /*!
-   * \brief Constructor
-   * \param constructor The constructor of a pattern
-   * \param patterns The sub-patterns for matching
-   */
-  TVM_DLL PatternConstructor(Constructor constructor, tvm::Array<Pattern> patterns);
-
   TVM_DEFINE_OBJECT_REF_METHODS(PatternConstructor, Pattern, PatternConstructorNode);
 };
 
@@ -193,16 +149,14 @@ class PatternTupleNode : public PatternNode {
   /*! Sub-patterns to match against each value of the tuple. */
   tvm::Array<Pattern> patterns;
 
+  PatternTupleNode() {}
+
+  TVM_DLL static PatternTuple make(tvm::Array<Pattern> var);
+
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("patterns", &patterns);
     v->Visit("span", &span);
   }
-
-  bool SEqualReduce(const PatternTupleNode* other, SEqualReducer equal) const {
-    return equal(patterns, other->patterns);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(patterns); }
 
   static constexpr const char* _type_key = "relay.PatternTuple";
   TVM_DECLARE_FINAL_OBJECT_INFO(PatternTupleNode, PatternNode);
@@ -210,12 +164,6 @@ class PatternTupleNode : public PatternNode {
 
 class PatternTuple : public Pattern {
  public:
-  /*!
-   * \brief Constructor
-   * \param patterns The sub-patterns to match against each value of the tuple
-   */
-  TVM_DLL explicit PatternTuple(tvm::Array<Pattern> patterns);
-
   TVM_DEFINE_OBJECT_REF_METHODS(PatternTuple, Pattern, PatternTupleNode);
 };
 
@@ -234,30 +182,14 @@ class ClauseNode : public Object {
     v->Visit("rhs", &rhs);
   }
 
-  bool SEqualReduce(const ClauseNode* other, SEqualReducer equal) const {
-    return equal(lhs, other->lhs) && equal(rhs, other->rhs);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(lhs);
-    hash_reduce(rhs);
-  }
+  TVM_DLL static Clause make(Pattern lhs, Expr rhs);
 
   static constexpr const char* _type_key = "relay.Clause";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(ClauseNode, Object);
 };
 
 class Clause : public ObjectRef {
  public:
-  /*!
-   * \brief Constructor
-   * \param lhs The pattern matched by the clause.
-   * \param rhs The resulting value
-   */
-  TVM_DLL explicit Clause(Pattern lhs, Expr rhs);
-
   TVM_DEFINE_OBJECT_REF_METHODS(Clause, ObjectRef, ClauseNode);
 };
 
@@ -285,18 +217,7 @@ class MatchNode : public ExprNode {
     v->Visit("_checked_type_", &checked_type_);
   }
 
-  bool SEqualReduce(const MatchNode* other, SEqualReducer equal) const {
-    equal->MarkGraphNode();
-    return equal(data, other->data) && equal(clauses, other->clauses) &&
-           equal(complete, other->complete);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce->MarkGraphNode();
-    hash_reduce(data);
-    hash_reduce(clauses);
-    hash_reduce(complete);
-  }
+  TVM_DLL static Match make(Expr data, tvm::Array<Clause> pattern, bool complete = true);
 
   static constexpr const char* _type_key = "relay.Match";
   TVM_DECLARE_FINAL_OBJECT_INFO(MatchNode, ExprNode);
@@ -304,14 +225,6 @@ class MatchNode : public ExprNode {
 
 class Match : public Expr {
  public:
-  /*!
-   * \brief Constructor
-   * \param data the input being deconstructed.
-   * \param clauses The clauses for matching.
-   * \param complete Indicate if this match is complete.
-   */
-  TVM_DLL Match(Expr data, tvm::Array<Clause> clauses, bool complete = true);
-
   TVM_DEFINE_OBJECT_REF_METHODS(Match, RelayExpr, MatchNode);
 };
 

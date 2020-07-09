@@ -16,12 +16,11 @@
 # under the License.
 """Basic tensor operations."""
 # pylint: disable=redefined-builtin
-from tvm.runtime import ndarray as _nd
-from tvm.runtime import TVMContext as _TVMContext
-
+from __future__ import absolute_import as _abs
 from . import _make
-from ..expr import Tuple, const
-
+from ..expr import Tuple
+from ... import nd as _nd
+from ... import TVMContext as _TVMContext
 
 # We create a wrapper function for each operator in the
 # python side to call into the positional _make.OpName function.
@@ -47,51 +46,6 @@ def log(data):
     """
     return _make.log(data)
 
-def log2(data):
-    """Compute elementwise log to the base 2 of data.
-
-    Parameters
-    ----------
-    data : relay.Expr
-        The input data
-
-    Returns
-    -------
-    result : relay.Expr
-        The computed result.
-    """
-    return _make.log2(data)
-
-def log10(data):
-    """Compute elementwise log to the base 10 of data.
-
-    Parameters
-    ----------
-    data : relay.Expr
-        The input data
-
-    Returns
-    -------
-    result : relay.Expr
-        The computed result.
-    """
-    return _make.log10(data)
-
-def tan(data):
-    """Compute elementwise tan of data.
-
-    Parameters
-    ----------
-    data : relay.Expr
-        The input data
-
-    Returns
-    -------
-    result : relay.Expr
-        The computed result.
-    """
-    return _make.tan(data)
-
 def cos(data):
     """Compute elementwise cos of data.
 
@@ -106,21 +60,6 @@ def cos(data):
         The computed result.
     """
     return _make.cos(data)
-
-def cosh(data):
-    """Compute elementwise cosh of data.
-
-    Parameters
-    ----------
-    data : relay.Expr
-        The input data
-
-    Returns
-    -------
-    result : relay.Expr
-        The computed result.
-    """
-    return _make.cosh(data)
 
 def sin(data):
     """Compute elementwise sin of data.
@@ -137,81 +76,6 @@ def sin(data):
     """
     return _make.sin(data)
 
-def sinh(data):
-    """Compute elementwise sinh of data.
-
-    Parameters
-    ----------
-    data : relay.Expr
-        The input data
-
-    Returns
-    -------
-    result : relay.Expr
-        The computed result.
-    """
-    return _make.sinh(data)
-
-def acos(data):
-    """Compute elementwise acos of data.
-
-    Parameters
-    ----------
-    data : relay.Expr
-        The input data
-
-    Returns
-    -------
-    result : relay.Expr
-        The computed result.
-    """
-    return _make.acos(data)
-
-def acosh(data):
-    """Compute elementwise acosh of data.
-
-    Parameters
-    ----------
-    data : relay.Expr
-        The input data
-
-    Returns
-    -------
-    result : relay.Expr
-        The computed result.
-    """
-    return _make.acosh(data)
-
-def asin(data):
-    """Compute elementwise asin of data.
-
-    Parameters
-    ----------
-    data : relay.Expr
-        The input data
-
-    Returns
-    -------
-    result : relay.Expr
-        The computed result.
-    """
-    return _make.asin(data)
-
-def asinh(data):
-    """Compute elementwise asinh of data.
-
-    Parameters
-    ----------
-    data : relay.Expr
-        The input data
-
-    Returns
-    -------
-    result : relay.Expr
-        The computed result.
-    """
-    return _make.asinh(data)
-
 def atan(data):
     """Compute elementwise atan of data.
 
@@ -226,21 +90,6 @@ def atan(data):
         The computed result.
     """
     return _make.atan(data)
-
-def atanh(data):
-    """Compute elementwise atanh of data.
-
-    Parameters
-    ----------
-    data : relay.Expr
-        The input data
-
-    Returns
-    -------
-    result : relay.Expr
-        The computed result.
-    """
-    return _make.atanh(data)
 
 def exp(data):
     """Compute elementwise exp of data.
@@ -468,22 +317,6 @@ def logical_not(data):
     return _make.logical_not(data)
 
 
-def bitwise_not(data):
-    """Compute element-wise bitwise not of data.
-
-    Parameters
-    ----------
-    data : relay.Expr
-        The input data
-
-    Returns
-    -------
-    result : relay.Expr
-        The computed result.
-    """
-    return _make.bitwise_not(data)
-
-
 def add(lhs, rhs):
     """Addition with numpy-style broadcasting.
 
@@ -672,77 +505,6 @@ def logical_or(lhs, rhs):
     return _make.logical_or(lhs, rhs)
 
 
-def logical_xor(lhs, rhs):
-    """logical XOR with numpy-style broadcasting.
-
-    Parameters
-    ----------
-    lhs : relay.Expr
-        The left hand side input data
-    rhs : relay.Expr
-        The right hand side input data
-
-    Returns
-    -------
-    result : relay.Expr
-        The computed result.
-    """
-    return _make.logical_xor(lhs, rhs)
-
-def bitwise_and(lhs, rhs):
-    """bitwise AND with numpy-style broadcasting.
-
-    Parameters
-    ----------
-    lhs : relay.Expr
-        The left hand side input data
-    rhs : relay.Expr
-        The right hand side input data
-
-    Returns
-    -------
-    result : relay.Expr
-        The computed result.
-    """
-    return _make.bitwise_and(lhs, rhs)
-
-
-def bitwise_or(lhs, rhs):
-    """bitwise OR with numpy-style broadcasting.
-
-    Parameters
-    ----------
-    lhs : relay.Expr
-        The left hand side input data
-    rhs : relay.Expr
-        The right hand side input data
-
-    Returns
-    -------
-    result : relay.Expr
-        The computed result.
-    """
-    return _make.bitwise_or(lhs, rhs)
-
-
-def bitwise_xor(lhs, rhs):
-    """bitwise XOR with numpy-style broadcasting.
-
-    Parameters
-    ----------
-    lhs : relay.Expr
-        The left hand side input data
-    rhs : relay.Expr
-        The right hand side input data
-
-    Returns
-    -------
-    result : relay.Expr
-        The computed result.
-    """
-    return _make.bitwise_xor(lhs, rhs)
-
-
 def equal(lhs, rhs):
     """Broadcasted elementwise test for (lhs == rhs).
 
@@ -928,7 +690,7 @@ def zeros(shape, dtype):
 
     Parameters
     ----------
-    shape : tuple of int or relay.Expr
+    shape : tuple of int
         The shape of the target.
 
     dtype : data type
@@ -939,8 +701,6 @@ def zeros(shape, dtype):
     result : relay.Expr
         The resulting tensor.
     """
-    if isinstance(shape, (list, tuple)):
-        shape = const(list(shape), "int32")
     return _make.zeros(shape, dtype)
 
 
@@ -965,7 +725,7 @@ def ones(shape, dtype):
 
     Parameters
     ----------
-    shape : tuple of int or relay.Expr
+    shape : tuple of int
         The shape of the target.
 
     dtype : data type
@@ -976,8 +736,6 @@ def ones(shape, dtype):
     result : relay.Expr
         The resulting tensor.
     """
-    if isinstance(shape, (list, tuple)):
-        shape = const(list(shape), "int32")
     return _make.ones(shape, dtype)
 
 
@@ -1018,7 +776,6 @@ def clip(a, a_min, a_max):
     Examples
     --------
     .. code:: python
-
       x = relay.Constant(tvm.nd.array([0, 1, 5, 3, 4, 2]))
       relay.clip(x, 1., 4.)
       # [1, 1, 4, 3, 4, 2]
@@ -1145,70 +902,3 @@ def shape_of(data, dtype="int32"):
         The shape tensor.
     """
     return _make.shape_of(data, dtype)
-
-
-def ndarray_size(data, dtype="int32"):
-    """Get number of elements of input tensor.
-
-    Parameters
-    ----------
-    data : tvm.relay.Expr
-        The input tensor.
-
-    dtype : str, optional
-        The target data type.
-
-    Returns
-    -------
-    result : tvm.relay.Expr
-        The number of elements of input tensor.
-    """
-    return _make.ndarray_size(data, dtype)
-
-
-def isnan(data):
-    """Check nan in input data element-wise.
-
-    Parameters
-    ----------
-    data : relay.Expr
-        The input data
-
-    Returns
-    -------
-    result : relay.Expr
-        The computed result.
-    """
-    return _make.isnan(data)
-
-
-def isfinite(data):
-    """Compute element-wise finiteness of data.
-
-    Parameters
-    ----------
-    data : relay.Expr
-        The input data
-
-    Returns
-    -------
-    result : relay.Expr
-        The computed result.
-    """
-    return _make.isfinite(data)
-
-
-def isinf(data):
-    """Compute element-wise infiniteness of data.
-
-    Parameters
-    ----------
-    data : relay.Expr
-        The input data
-
-    Returns
-    -------
-    result : relay.Expr
-        The computed result.
-    """
-    return _make.isinf(data)

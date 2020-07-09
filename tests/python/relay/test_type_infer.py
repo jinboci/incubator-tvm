@@ -17,15 +17,14 @@
 """Test that type checker correcly computes types
    for expressions.
 """
-import tvm
-from tvm import te
 from tvm import relay
 from tvm.relay import op, transform, analysis
+from tvm.relay.analysis import assert_alpha_equal
 
 
 def run_infer_type(expr, mod=None):
     if not mod:
-        mod = tvm.IRModule.from_expr(expr)
+        mod = relay.Module.from_expr(expr)
         mod = transform.InferType()(mod)
         entry = mod["main"]
         return entry if isinstance(expr, relay.Function) else entry.body
@@ -45,7 +44,7 @@ def run_infer_type(expr, mod=None):
         return mod[gv].body
 
 
-def assert_has_type(expr, typ, mod=tvm.IRModule({})):
+def assert_has_type(expr, typ, mod=relay.module.Module({})):
     checked_expr = run_infer_type(expr, mod)
     checked_type = checked_expr.checked_type
     if checked_type != typ:
@@ -153,7 +152,7 @@ def test_recursion():
         sb.ret(data)
     with sb.else_scope():
         sb.ret(f(relay.subtract(n, relay.const(1, ti32)), relay.log(data)))
-    mod = tvm.IRModule()
+    mod = relay.Module()
     mod[f] = relay.Function([n, data], sb.get())
     assert "@f(%1, %2) /* ty=float32 */" in mod.astext()
     assert mod[f].checked_type == relay.FuncType([ti32, tf32], tf32)
@@ -268,7 +267,7 @@ def test_type_args():
 
 
 def test_global_var_recursion():
-    mod = tvm.IRModule({})
+    mod = relay.Module({})
     gv = relay.GlobalVar("main")
     x = relay.var('x', shape=[])
     tt = relay.scalar_type('float32')
@@ -290,7 +289,7 @@ def test_equal():
 
 
 def test_constructor_type():
-    mod = tvm.IRModule()
+    mod = relay.Module()
     box, constructor = initialize_box_adt(mod)
 
     a = relay.TypeVar('a')
@@ -301,7 +300,7 @@ def test_constructor_type():
 
 
 def test_constructor_call():
-    mod = tvm.IRModule()
+    mod = relay.Module()
     box, constructor = initialize_box_adt(mod)
 
     box_unit = constructor(relay.Tuple([]))
@@ -314,7 +313,7 @@ def test_constructor_call():
 
 
 def test_adt_match():
-    mod = tvm.IRModule()
+    mod = relay.Module()
     box, constructor = initialize_box_adt(mod)
 
     v = relay.Var('v', relay.TensorType((), 'float32'))
@@ -332,7 +331,7 @@ def test_adt_match():
 
 
 def test_adt_match_type_annotations():
-    mod = tvm.IRModule()
+    mod = relay.Module()
     box, constructor = initialize_box_adt(mod)
 
     # the only type annotation is inside the match pattern var
@@ -359,7 +358,7 @@ def test_let_polymorphism():
     body = relay.Let(id, relay.Function([x], x, xt, [xt]), body)
     body = run_infer_type(body)
     int32 = relay.TensorType((), "int32")
-    tvm.ir.assert_structural_equal(body.checked_type, relay.TupleType([int32, relay.TupleType([])]))
+    assert_alpha_equal(body.checked_type, relay.TupleType([int32, relay.TupleType([])]))
 
 
 if __name__ == "__main__":

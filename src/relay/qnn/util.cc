@@ -23,8 +23,7 @@
  */
 
 #include "util.h"
-
-#include "../transforms/pattern_util.h"
+#include "../pass/pattern_util.h"
 
 namespace tvm {
 namespace relay {
@@ -49,7 +48,8 @@ namespace qnn {
  *
  *       Credit to TFLite reference implementation.
  */
-std::pair<int32_t, int32_t> GetFixedPointMultiplierShift(double double_multiplier) {
+std::pair<int32_t, int32_t> GetFixedPointMultiplierShift(
+    double double_multiplier) {
   int32_t significand, exponent;
   if (double_multiplier == 0.) {
     significand = 0;
@@ -80,11 +80,11 @@ Expr FixedPointMultiply(Expr tensor, double multiplier, const Array<IndexExpr>& 
   // Choose high precision datatype to be int64. This is for avoiding overflow
   // in multiplication of two int32 values.
   DataType hp_dtype = DataType::Int(64);
-  tensor = Cast(tensor, hp_dtype);
 
   // 1) Calculating the integer multiplier and integer shift
   int32_t fixed_point_multiplier, shift;
-  std::tie(fixed_point_multiplier, shift) = GetFixedPointMultiplierShift(multiplier);
+  std::tie(fixed_point_multiplier, shift) =
+      GetFixedPointMultiplierShift(multiplier);
   int left_shift = shift > 0 ? shift : 0;
   int right_shift = shift > 0 ? 0 : -shift;
 
@@ -118,7 +118,8 @@ Expr FixedPointMultiply(Expr tensor, double multiplier, const Array<IndexExpr>& 
     auto neg_rounder_t = Full(neg_rounder, input_shape, hp_dtype);
 
     auto zero_t = Zeros(input_shape, hp_dtype);
-    round_scalar = Where(GreaterEqual(tensor, zero_t), pos_rounder_t, neg_rounder_t);
+    round_scalar =
+        Where(GreaterEqual(tensor, zero_t), pos_rounder_t, neg_rounder_t);
   } else {
     LOG(FATAL) << "Rounding mode " << rounding << " not supported.";
   }
@@ -126,10 +127,10 @@ Expr FixedPointMultiply(Expr tensor, double multiplier, const Array<IndexExpr>& 
   tensor = Add(tensor, round_scalar);
 
   // 5) Simply right shift the result to get the final output.
-  tensor = RightShift(tensor, MakeConstantScalar(hp_dtype, total_right_shift));
+  tensor =
+      RightShift(tensor, MakeConstantScalar(hp_dtype, total_right_shift));
 
-  // 6) The fixed point multiplication keeps the value in int32 range. Casting back to int32.
-  return Cast(tensor, DataType::Int(32));
+  return tensor;
 }
 
 Expr FixedPointMultiplyPerChannel(Expr tensor, std::vector<double> multipliers,
@@ -144,12 +145,10 @@ Expr FixedPointMultiplyPerChannel(Expr tensor, std::vector<double> multipliers,
   // Choose high precision datatype to be int64. This is for avoiding overflow
   // in multiplication of two int32 values.
   DataType hp_dtype = DataType::Int(64);
-  tensor = Cast(tensor, hp_dtype);
 
   // 1) Calculating the integer multiplier and integer shift. These are calculated per axis/per
   // channel.
   std::vector<int32_t> fixed_pt_multipliers, lshifts, rshifts;
-  bool is_lshift_required = false;
   for (auto multiplier : multipliers) {
     int32_t fixed_pt_multiplier, shift;
     std::tie(fixed_pt_multiplier, shift) = GetFixedPointMultiplierShift(multiplier);
@@ -158,15 +157,12 @@ Expr FixedPointMultiplyPerChannel(Expr tensor, std::vector<double> multipliers,
     fixed_pt_multipliers.push_back(fixed_pt_multiplier);
     lshifts.push_back(lshift);
     rshifts.push_back(rshift);
-    is_lshift_required = is_lshift_required | (lshift != 0);
   }
 
   // 2) Multiply the integer multiplier. Convert lefts shifts into expr and multiply.
-  if (is_lshift_required) {
-    auto lshift_expr = MakeConstantTensor(hp_dtype, {n_channels}, lshifts);
-    auto exp_lshift_expr = ExpandBiasToMatchAxis(lshift_expr, n_dim, {channel_axis});
-    tensor = LeftShift(tensor, exp_lshift_expr);
-  }
+  auto lshift_expr = MakeConstantTensor(hp_dtype, {n_channels}, lshifts);
+  auto exp_lshift_expr = ExpandBiasToMatchAxis(lshift_expr, n_dim, {channel_axis});
+  tensor = LeftShift(tensor, exp_lshift_expr);
 
   // 3) Perform the multiplication in higher precision.
   // The scalar is a fixed point value of int32 where the decimal point is
@@ -202,8 +198,8 @@ Expr FixedPointMultiplyPerChannel(Expr tensor, std::vector<double> multipliers,
     round_scalar = exp_pos_rounding_value_expr;
   } else if (rounding == "TONEAREST") {
     // To satisfy where op shape requirements, the rounding values are broadcasted.
-    auto pos_rounder = BroadCastTo(exp_pos_rounding_value_expr, input_shape);
-    auto neg_rounder = BroadCastTo(exp_neg_rounding_value_expr, input_shape);
+    auto pos_rounder = MakeBroadCastTo(exp_pos_rounding_value_expr, input_shape);
+    auto neg_rounder = MakeBroadCastTo(exp_neg_rounding_value_expr, input_shape);
 
     auto zero_t = Zeros(input_shape, hp_dtype);
     round_scalar = Where(GreaterEqual(tensor, zero_t), pos_rounder, neg_rounder);
@@ -218,8 +214,7 @@ Expr FixedPointMultiplyPerChannel(Expr tensor, std::vector<double> multipliers,
   auto exp_total_rshift_expr = ExpandBiasToMatchAxis(total_rshift_expr, n_dim, {channel_axis});
   tensor = RightShift(tensor, exp_total_rshift_expr);
 
-  // 6) The fixed point multiplication keeps the value in int32 range. Casting back to int32.
-  return Cast(tensor, DataType::Int(32));
+  return tensor;
 }
 
 }  // namespace qnn

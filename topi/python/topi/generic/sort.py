@@ -15,11 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, no-member
-"""Generic sort operators"""
+"""Generic vision operators"""
 from __future__ import absolute_import as _abs
-from .default import default_schedule as _default_schedule
+import tvm
+from .vision import _default_schedule
 
-
+@tvm.target.generic_func
 def schedule_argsort(outs):
     """Schedule for argsort operator.
 
@@ -36,6 +37,7 @@ def schedule_argsort(outs):
     """
     return _default_schedule(outs, False)
 
+@tvm.target.generic_func
 def schedule_topk(outs):
     """Schedule for topk operator.
 

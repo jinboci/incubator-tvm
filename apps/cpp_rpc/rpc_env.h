@@ -25,7 +25,6 @@
 #define TVM_APPS_CPP_RPC_ENV_H_
 
 #include <tvm/runtime/registry.h>
-
 #include <string>
 
 namespace tvm {
@@ -41,13 +40,13 @@ namespace runtime {
  * \param file The format of file
  * \return Module The loaded module
  */
-Module Load(std::string* path, const std::string& fmt = "");
+Module Load(std::string *path, const std::string fmt = "");
 
 /*!
  * \brief CleanDir Removes the files from the directory
  * \param dirname THe name of the directory
  */
-void CleanDir(const std::string& dirname);
+void CleanDir(const std::string &dirname);
 
 /*!
  * \brief RPCEnv The RPC Environment parameters for c++ rpc server
@@ -63,11 +62,11 @@ struct RPCEnv {
    * \param name The file name
    * \return The full path of file.
    */
-  std::string GetPath(const std::string& file_name) const;
+  std::string GetPath(std::string file_name);
   /*!
    * \brief The RPC Environment cleanup function
    */
-  void CleanUp() const;
+  void CleanUp();
 
  private:
   /*!

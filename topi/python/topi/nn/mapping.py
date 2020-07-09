@@ -18,50 +18,49 @@
 """Operators of one-to-one-mapping on the first input"""
 from __future__ import absolute_import as _abs
 import tvm
-from tvm import te
 from .. import tag
 
-@tvm.te.tag_scope(tag=tag.BROADCAST)
+@tvm.tag_scope(tag=tag.BROADCAST)
 def scale_shift_nchw(Input, Scale, Shift):
     """Batch normalization operator in inference.
 
     Parameters
     ----------
-    Input : tvm.te.Tensor
+    Input : tvm.Tensor
         Input tensor, layout is NCHW
 
-    Scale : tvm.te.Tensor
+    Scale : tvm.Tensor
         Scale tensor, 1-D of size channel number
 
-    Shift : tvm.te.Tensor
+    Shift : tvm.Tensor
         Shift tensor, 1-D of size channel number
 
     Returns
     -------
-    Output : tvm.te.Tensor
+    Output : tvm.Tensor
         Output tensor, layout is NCHW
     """
-    return te.compute(Input.shape, lambda b, c, i, j: Input[b, c, i, j] * Scale[c] + Shift[c], name='ScaleShift')
+    return tvm.compute(Input.shape, lambda b, c, i, j: Input[b, c, i, j] * Scale[c] + Shift[c], name='ScaleShift')
 
 
-@tvm.te.tag_scope(tag=tag.BROADCAST)
+@tvm.tag_scope(tag=tag.BROADCAST)
 def scale_shift_nhwc(Input, Scale, Shift):
     """Batch normalization operator in inference.
 
     Parameters
     ----------
-    Input : tvm.te.Tensor
+    Input : tvm.Tensor
         Input tensor, layout is NHWC
 
-    Scale : tvm.te.Tensor
+    Scale : tvm.Tensor
         Scale tensor, 1-D of size channel number
 
-    Shift : tvm.te.Tensor
+    Shift : tvm.Tensor
         Shift tensor, 1-D of size channel number
 
     Returns
     -------
-    Output : tvm.te.Tensor
+    Output : tvm.Tensor
         Output tensor, layout is NHWC
     """
-    return te.compute(Input.shape, lambda b, i, j, c: Input[b, i, j, c] * Scale[c] + Shift[c], name='ScaleShift')
+    return tvm.compute(Input.shape, lambda b, i, j, c: Input[b, i, j, c] * Scale[c] + Shift[c], name='ScaleShift')

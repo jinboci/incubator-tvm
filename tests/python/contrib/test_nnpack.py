@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
 import numpy as np
 import scipy.signal
 from topi.nn.util import get_pad_tuple
@@ -27,15 +26,15 @@ def test_fully_connected_inference():
     n = 1024
     l = 128
     m = 235
-    bias = te.var('bias', dtype="float32")
-    A = te.placeholder((l, ), name='A')
-    B = te.placeholder((m, l), name='B')
+    bias = tvm.var('bias', dtype=tvm.float32)
+    A = tvm.placeholder((l, ), name='A')
+    B = tvm.placeholder((m, l), name='B')
     C = nnpack.fully_connected_inference(A, B)
-    D = te.compute(C.shape, lambda i: C[i] + bias, name="D")
-    s = te.create_schedule(D.op)
+    D = tvm.compute(C.shape, lambda i: C[i] + bias, name="D")
+    s = tvm.create_schedule(D.op)
 
     def verify(target="llvm"):
-        if not tvm.runtime.enabled(target):
+        if not tvm.module.enabled(target):
             pytest.skip("%s is not enabled..." % target)
         if not tvm.get_global_func("tvm.contrib.nnpack.fully_connected_inference", True):
             pytest.skip("extern function is not available")
@@ -99,13 +98,13 @@ def test_convolution_inference():
     bshape = (OC, )
     oshape = (BATCH, OC, OH, OW)
 
-    data = te.placeholder(dshape, name='data')
-    kernel = te.placeholder(kshape, name='kernel')
-    bias = te.placeholder(bshape, name='bias')
+    data = tvm.placeholder(dshape, name='data')
+    kernel = tvm.placeholder(kshape, name='kernel')
+    bias = tvm.placeholder(bshape, name='bias')
     def verify(target="llvm",
                algorithm=nnpack.ConvolutionAlgorithm.AUTO,
                with_bias=True):
-        if not tvm.runtime.enabled(target):
+        if not tvm.module.enabled(target):
             pytest.skip("%s is not enabled..." % target)
         if not tvm.get_global_func("tvm.contrib.nnpack.fully_connected_inference", True):
             pytest.skip("extern function is not available")
@@ -117,7 +116,7 @@ def test_convolution_inference():
             data, kernel, bias if with_bias else None,
             [PAD, PAD, PAD, PAD], [STRIDE, STRIDE],
             algorithm=algorithm)
-        s = te.create_schedule(output.op)
+        s = tvm.create_schedule(output.op)
 
         f = tvm.build(s, [data, kernel, bias, output], target)
 
@@ -161,13 +160,13 @@ def test_convolution_inference_without_weight_transform():
     bshape = (OC, )
     oshape = (BATCH, OC, OH, OW)
 
-    data = te.placeholder(dshape, name='data')
-    kernel = te.placeholder(kshape, name='kernel')
-    bias = te.placeholder(bshape, name='bias')
+    data = tvm.placeholder(dshape, name='data')
+    kernel = tvm.placeholder(kshape, name='kernel')
+    bias = tvm.placeholder(bshape, name='bias')
     def verify(target="llvm",
                algorithm=nnpack.ConvolutionAlgorithm.AUTO,
                with_bias=True):
-        if not tvm.runtime.enabled(target):
+        if not tvm.module.enabled(target):
             pytest.skip("%s is not enabled..." % target)
         if not tvm.get_global_func("tvm.contrib.nnpack.fully_connected_inference", True):
             pytest.skip("extern function is not available")
@@ -182,7 +181,7 @@ def test_convolution_inference_without_weight_transform():
             [PAD, PAD, PAD, PAD], [STRIDE, STRIDE],
             algorithm=algorithm)
 
-        s = te.create_schedule(output.op)
+        s = tvm.create_schedule(output.op)
 
         f = tvm.build(s, [data, kernel, bias, output], target)
 

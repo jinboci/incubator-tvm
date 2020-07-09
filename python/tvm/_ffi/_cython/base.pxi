@@ -22,7 +22,7 @@ from cpython cimport pycapsule
 from libc.stdint cimport int32_t, int64_t, uint64_t, uint32_t, uint8_t, uint16_t
 import ctypes
 
-cdef enum TVMArgTypeCode:
+cdef enum TVMTypeCode:
     kInt = 0
     kUInt = 1
     kFloat = 2
@@ -37,7 +37,6 @@ cdef enum TVMArgTypeCode:
     kTVMStr = 11
     kTVMBytes = 12
     kTVMNDArrayHandle = 13
-    kTVMObjectRefArg = 14
     kTVMExtBegin = 15
 
 cdef extern from "tvm/runtime/c_runtime_api.h":
@@ -76,7 +75,7 @@ ctypedef int64_t tvm_index_t
 ctypedef DLTensor* DLTensorHandle
 ctypedef void* TVMStreamHandle
 ctypedef void* TVMRetValueHandle
-ctypedef void* TVMPackedFuncHandle
+ctypedef void* TVMFunctionHandle
 ctypedef void* ObjectHandle
 
 ctypedef struct TVMObject:
@@ -97,15 +96,13 @@ ctypedef void (*TVMPackedCFuncFinalizer)(void* resource_handle)
 cdef extern from "tvm/runtime/c_runtime_api.h":
     void TVMAPISetLastError(const char* msg)
     const char *TVMGetLastError()
-    int TVMFuncGetGlobal(const char* name,
-                         TVMPackedFuncHandle* out);
-    int TVMFuncCall(TVMPackedFuncHandle func,
+    int TVMFuncCall(TVMFunctionHandle func,
                     TVMValue* arg_values,
                     int* type_codes,
                     int num_args,
                     TVMValue* ret_val,
                     int* ret_type_code)
-    int TVMFuncFree(TVMPackedFuncHandle func)
+    int TVMFuncFree(TVMFunctionHandle func)
     int TVMCFuncSetReturn(TVMRetValueHandle ret,
                           TVMValue* value,
                           int* type_code,
@@ -113,8 +110,8 @@ cdef extern from "tvm/runtime/c_runtime_api.h":
     int TVMFuncCreateFromCFunc(TVMPackedCFunc func,
                                void* resource_handle,
                                TVMPackedCFuncFinalizer fin,
-                               TVMPackedFuncHandle *out)
-    int TVMCbArgToReturn(TVMValue* value, int* code)
+                               TVMFunctionHandle *out)
+    int TVMCbArgToReturn(TVMValue* value, int code)
     int TVMArrayAlloc(tvm_index_t* shape,
                       tvm_index_t ndim,
                       DLDataType dtype,

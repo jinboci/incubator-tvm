@@ -18,10 +18,9 @@
 # pylint: disable-msg=C0103
 import ctypes
 import numpy as np
-import tvm
-
-import tvm._ffi
-from tvm import te
+from .. import api as _api
+from .. import intrin as _intrin
+from .. import get_global_func as _get_global_func
 
 # algos can be read from cudnn.h
 _FWD_ALGOS = [
@@ -182,8 +181,7 @@ def conv_output_shape(tensor_format,
                       x_shape,
                       w_shape,
                       data_dtype,
-                      conv_dtype,
-                      groups=1):
+                      conv_dtype):
     """Get output shape of 2D or 3D convolution
 
     Paramters
@@ -206,8 +204,6 @@ def conv_output_shape(tensor_format,
         data type
     conv_dtype: str
         convolution type
-    groups: int
-        number of groups
 
     Returns
     -------
@@ -221,7 +217,7 @@ def conv_output_shape(tensor_format,
         _prepare_global_func_params(dims - 2, pad, stride, dilation, x_shape, w_shape)
     oshape = np.zeros((dims), dtype=np.int32)
 
-    func = tvm._ffi.get_global_func("tvm.contrib.cudnn.conv.output_shape")
+    func = _get_global_func("tvm.contrib.cudnn.conv.output_shape")
     func(tensor_format,
          dims - 2,
          _get_np_int32_array_handle(pad),
@@ -231,8 +227,7 @@ def conv_output_shape(tensor_format,
          _get_np_int32_array_handle(wshape),
          _get_np_int32_array_handle(oshape),
          data_dtype,
-         conv_dtype,
-         groups)
+         conv_dtype)
     return list(oshape)
 
 
@@ -244,8 +239,7 @@ def conv_find_algo(tensor_format,
                    w_shape,
                    y_shape,
                    data_dtype,
-                   conv_dtype,
-                   groups=1):
+                   conv_dtype):
     """Choose the best algo for the given input.
 
     Paramters
@@ -270,8 +264,6 @@ def conv_find_algo(tensor_format,
         data type
     conv_dtype: str
         convolution type
-    groups: int
-        number of groups
 
     Returns
     -------
@@ -284,7 +276,7 @@ def conv_find_algo(tensor_format,
     pad, stride, dilation, xshape, wshape = \
         _prepare_global_func_params(dims - 2, pad, stride, dilation, x_shape, w_shape)
     yshape = np.array(y_shape, dtype=np.int32)
-    func = tvm._ffi.get_global_func("tvm.contrib.cudnn.conv.find_algo")
+    func = _get_global_func("tvm.contrib.cudnn.conv.find_algo")
     return func(tensor_format,
                 dims - 2,
                 _get_np_int32_array_handle(pad),
@@ -294,8 +286,7 @@ def conv_find_algo(tensor_format,
                 _get_np_int32_array_handle(wshape),
                 _get_np_int32_array_handle(yshape),
                 data_dtype,
-                conv_dtype,
-                groups)
+                conv_dtype)
 
 
 def conv_forward(x,
@@ -306,8 +297,7 @@ def conv_forward(x,
                  conv_mode,
                  tensor_format,
                  algo,
-                 conv_dtype,
-                 groups=1):
+                 conv_dtype):
     """Create an extern op that compute 2D or 3D convolution with CuDNN
 
     Parameters
@@ -334,8 +324,6 @@ def conv_forward(x,
         if algo == -1, the best algo will be chosen by CUDNN
     conv_dtype: str
         convolution type
-    groups: int
-        the number of groups
 
     Returns
     -------
@@ -346,7 +334,8 @@ def conv_forward(x,
     assert dims in (4, 5)
 
     conv_dtype = x.dtype if conv_dtype is None else conv_dtype
-    pad, stride, dilation, _, _ = _prepare_global_func_params(dims - 2, pad, stride, dilation)
+    pad, stride, dilation, _, _ = \
+        _prepare_global_func_params(dims - 2, pad, stride, dilation)
 
     oshape = conv_output_shape(tensor_format,
                                pad,
@@ -355,8 +344,7 @@ def conv_forward(x,
                                list(x.shape),
                                list(w.shape),
                                x.dtype,
-                               conv_dtype,
-                               groups)
+                               conv_dtype)
     if algo == -1:
         # For now if we try to call `cudnnFindConvolutionForwardAlgorithm` when
         # using INT8 data type, CuDNN will crash down.
@@ -372,13 +360,12 @@ def conv_forward(x,
                                   list(w.shape),
                                   oshape,
                                   x.dtype,
-                                  conv_dtype,
-                                  groups)
+                                  conv_dtype)
 
     if dims == 4:
-        return te.extern(
+        return _api.extern(
             oshape, [x, w],
-            lambda ins, outs: tvm.tir.call_packed(
+            lambda ins, outs: _intrin.call_packed(
                 "tvm.contrib.cudnn.conv2d.forward",
                 conv_mode,
                 tensor_format,
@@ -392,12 +379,11 @@ def conv_forward(x,
                 ins[0],
                 ins[1],
                 outs[0],
-                conv_dtype,
-                groups), name="y")
+                conv_dtype), name="y")
 
-    return te.extern(
+    return _api.extern(
         oshape, [x, w],
-        lambda ins, outs: tvm.tir.call_packed(
+        lambda ins, outs: _intrin.call_packed(
             "tvm.contrib.cudnn.conv3d.forward",
             conv_mode,
             tensor_format,
@@ -414,29 +400,4 @@ def conv_forward(x,
             ins[0],
             ins[1],
             outs[0],
-            conv_dtype,
-            groups), name="y")
-
-def softmax(x, axis=-1):
-    """Compute softmax using CuDNN
-
-    Parameters
-    ----------
-    x : tvm.te.Tensor
-        The input tensor
-
-    axis : int
-        The axis to compute the softmax
-
-    Returns
-    -------
-    ret : tvm.te.Tensor
-        The result tensor
-    """
-    return te.extern(
-        x.shape, [x],
-        lambda ins, outs: tvm.tir.call_packed(
-            "tvm.contrib.cudnn.softmax.forward",
-            ins[0],
-            outs[0],
-            axis), name="y")
+            conv_dtype), name="y")

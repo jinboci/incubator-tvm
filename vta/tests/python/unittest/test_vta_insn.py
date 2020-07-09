@@ -16,7 +16,6 @@
 # under the License.
 """Unit test VTA's instructions """
 import tvm
-from tvm import te
 import numpy as np
 import topi
 from tvm.contrib import util
@@ -31,22 +30,22 @@ def test_save_load_out():
     """Test save/store output command"""
     def _run(env, remote):
         n = 6
-        x = te.placeholder(
+        x = tvm.placeholder(
             (n, n, env.BATCH, env.BLOCK_OUT),
             name="x",
             dtype=env.acc_dtype)
-        x_buf = te.compute(
+        x_buf = tvm.compute(
             (n, n, env.BATCH, env.BLOCK_OUT),
             lambda *i: x(*i), "x_buf")
         # insert no-op that won't be optimized away
-        y_buf = te.compute(
+        y_buf = tvm.compute(
             (n, n, env.BATCH, env.BLOCK_OUT),
             lambda *i: x_buf(*i)>>0, "y_buf")
-        y = te.compute(
+        y = tvm.compute(
             (n, n, env.BATCH, env.BLOCK_OUT),
             lambda *i: y_buf(*i).astype(env.inp_dtype), "y")
         # schedule
-        s = te.create_schedule(y.op)
+        s = tvm.create_schedule(y.op)
         s[x_buf].set_scope(env.acc_scope)
         s[x_buf].pragma(x_buf.op.axis[0], env.dma_copy)
         s[y_buf].set_scope(env.acc_scope)
@@ -94,22 +93,22 @@ def test_padded_load():
             # declare
             n = 3
             m = 5
-            x = te.placeholder(
+            x = tvm.placeholder(
                 (n, m, env.BATCH, env.BLOCK_OUT),
                 name="x",
                 dtype=env.acc_dtype)
             x_buf = topi.nn.pad(x, pad_before, pad_after, name="y")
             # insert no-op that won't be optimized away
-            y_buf = te.compute((n + pad_before[0] + pad_after[0],
+            y_buf = tvm.compute((n + pad_before[0] + pad_after[0],
                                  m + pad_before[1] + pad_after[1],
                                  env.BATCH,
                                  env.BLOCK_OUT), lambda *i: x_buf(*i)>>0, "y_buf")
-            y = te.compute((n + pad_before[0] + pad_after[0],
+            y = tvm.compute((n + pad_before[0] + pad_after[0],
                              m + pad_before[1] + pad_after[1],
                              env.BATCH,
                              env.BLOCK_OUT), lambda *i: y_buf(*i).astype(env.inp_dtype), "y")
             # schedule
-            s = te.create_schedule(y.op)
+            s = tvm.create_schedule(y.op)
             s[x_buf].set_scope(env.acc_scope)
             s[x_buf].pragma(x_buf.op.axis[0], env.dma_copy)
             s[y_buf].set_scope(env.acc_scope)
@@ -168,32 +167,32 @@ def test_gemm():
         o = 4
         n = 1
         m = 4
-        x = te.placeholder((o, n, env.BATCH, env.BLOCK_IN), name="x", dtype=env.inp_dtype)
-        w = te.placeholder((m, n, env.BLOCK_OUT, env.BLOCK_IN), name="w", dtype=env.wgt_dtype)
-        x_buf = te.compute((o, n, env.BATCH, env.BLOCK_IN), lambda *i: x(*i), "x_buf")
-        w_buf = te.compute((m, n, env.BLOCK_OUT, env.BLOCK_IN), lambda *i: w(*i), "w_buf")
-        ko = te.reduce_axis((0, n), name="ko")
-        ki = te.reduce_axis((0, env.BLOCK_IN), name="ki")
-        y_gem = te.compute(
+        x = tvm.placeholder((o, n, env.BATCH, env.BLOCK_IN), name="x", dtype=env.inp_dtype)
+        w = tvm.placeholder((m, n, env.BLOCK_OUT, env.BLOCK_IN), name="w", dtype=env.wgt_dtype)
+        x_buf = tvm.compute((o, n, env.BATCH, env.BLOCK_IN), lambda *i: x(*i), "x_buf")
+        w_buf = tvm.compute((m, n, env.BLOCK_OUT, env.BLOCK_IN), lambda *i: w(*i), "w_buf")
+        ko = tvm.reduce_axis((0, n), name="ko")
+        ki = tvm.reduce_axis((0, env.BLOCK_IN), name="ki")
+        y_gem = tvm.compute(
             (o, m, env.BATCH, env.BLOCK_OUT),
             lambda bo, co, bi, ci:
-            te.sum(x_buf[bo, ko, bi, ki].astype(env.acc_dtype) *
+            tvm.sum(x_buf[bo, ko, bi, ki].astype(env.acc_dtype) *
                     w_buf[co, ko, ci, ki].astype(env.acc_dtype),
                     axis=[ko, ki]),
             name="y_gem")
-        y_shf = te.compute(
+        y_shf = tvm.compute(
             (o, m, env.BATCH, env.BLOCK_OUT),
             lambda *i: y_gem(*i)>>8,
             name="y_shf")
-        y_max = te.compute(
+        y_max = tvm.compute(
             (o, m, env.BATCH, env.BLOCK_OUT),
-            lambda *i: tvm.te.max(y_shf(*i), 0),
+            lambda *i: tvm.max(y_shf(*i), 0),
             "y_max") #relu
-        y_min = te.compute(
+        y_min = tvm.compute(
             (o, m, env.BATCH, env.BLOCK_OUT),
-            lambda *i: tvm.te.min(y_max(*i), (1<<(env.INP_WIDTH-1))-1),
+            lambda *i: tvm.min(y_max(*i), (1<<(env.INP_WIDTH-1))-1),
             "y_min") #relu
-        y = te.compute(
+        y = tvm.compute(
             (o, m, env.BATCH, env.BLOCK_OUT),
             lambda *i: y_min(*i).astype(env.inp_dtype),
             name="y")
@@ -241,7 +240,7 @@ def test_gemm():
 
         def test_schedule1():
             # default schedule with no smt
-            s = te.create_schedule(y.op)
+            s = tvm.create_schedule(y.op)
             # set the scope of the SRAM buffers
             s[x_buf].set_scope(env.inp_scope)
             s[w_buf].set_scope(env.wgt_scope)
@@ -271,7 +270,7 @@ def test_gemm():
 
         def test_smt():
             # test smt schedule
-            s = te.create_schedule(y.op)
+            s = tvm.create_schedule(y.op)
             s[x_buf].set_scope(env.inp_scope)
             s[w_buf].set_scope(env.wgt_scope)
             s[y_gem].set_scope(env.acc_scope)
@@ -280,7 +279,7 @@ def test_gemm():
             s[y_min].set_scope(env.acc_scope)
             abo, aco, abi, aci = s[y].op.axis
             abo1, abo2 = s[y].split(abo, nparts=2)
-            s[y].bind(abo1, te.thread_axis("cthread"))
+            s[y].bind(abo1, tvm.thread_axis("cthread"))
             s[y_gem].compute_at(s[y], abo1)
             s[y_shf].compute_at(s[y], abo1)
             s[y_max].compute_at(s[y], abo1)
@@ -316,38 +315,38 @@ def test_alu():
             n = 8
             imm = np.random.randint(1,5)
             # compute
-            a = te.placeholder(
+            a = tvm.placeholder(
                 (m, n, env.BATCH, env.BLOCK_OUT),
                 name="a",
                 dtype=env.acc_dtype)
-            a_buf = te.compute(
+            a_buf = tvm.compute(
                 (m, n, env.BATCH, env.BLOCK_OUT),
                 lambda *i: a(*i),
                 "a_buf") #DRAM->SRAM
             if use_imm:
-                res_buf = te.compute(
+                res_buf = tvm.compute(
                     (m, n, env.BATCH, env.BLOCK_OUT),
                     lambda *i: tvm_op(a_buf(*i), imm),
                     "res_buf") #compute
             else:
-                b = te.placeholder(
+                b = tvm.placeholder(
                     (m, n, env.BATCH, env.BLOCK_OUT),
                     name="b",
                     dtype=env.acc_dtype)
-                b_buf = te.compute(
+                b_buf = tvm.compute(
                     (m, n, env.BATCH, env.BLOCK_OUT),
                     lambda *i: b(*i),
                     "b_buf") #DRAM->SRAM
-                res_buf = te.compute(
+                res_buf = tvm.compute(
                     (m, n, env.BATCH, env.BLOCK_OUT),
                     lambda *i: tvm_op(a_buf(*i), b_buf(*i)),
                     "res_buf") #compute5B
-            res = te.compute(
+            res = tvm.compute(
                 (m, n, env.BATCH, env.BLOCK_OUT),
                 lambda *i: res_buf(*i).astype(env.inp_dtype),
                 "res") #SRAM->DRAM
             # schedule
-            s = te.create_schedule(res.op)
+            s = tvm.create_schedule(res.op)
             s[a_buf].set_scope(env.acc_scope) # SRAM
             s[a_buf].pragma(a_buf.op.axis[0], env.dma_copy) # DRAM->SRAM
             s[res_buf].set_scope(env.acc_scope) # SRAM
@@ -403,8 +402,8 @@ def test_alu():
                     print("\t{:<16}: {:>16}".format(k, v))
 
         check_alu(lambda x, y: x << y, np.left_shift, use_imm=True, test_name="SHL")
-        check_alu(tvm.te.max, np.maximum, use_imm=True, test_name="MAX")
-        check_alu(tvm.te.max, np.maximum, test_name="MAX")
+        check_alu(tvm.max, np.maximum, use_imm=True, test_name="MAX")
+        check_alu(tvm.max, np.maximum, test_name="MAX")
         check_alu(lambda x, y: x + y, use_imm=True, test_name="ADD")
         check_alu(lambda x, y: x + y, test_name="ADD")
         check_alu(lambda x, y: x >> y, np.right_shift, use_imm=True, test_name="SHR")
@@ -418,28 +417,28 @@ def test_relu():
         m = 8
         n = 10
         # compute
-        a = te.placeholder(
+        a = tvm.placeholder(
             (m, n, env.BATCH, env.BLOCK_OUT),
             name="a",
             dtype=env.acc_dtype)
-        a_buf = te.compute(
+        a_buf = tvm.compute(
             (m, n, env.BATCH, env.BLOCK_OUT),
             lambda *i: a(*i),
             "a_buf") # DRAM->SRAM
-        max_buf = te.compute(
+        max_buf = tvm.compute(
             (m, n, env.BATCH, env.BLOCK_OUT),
-            lambda *i: tvm.te.max(a_buf(*i), 0),
+            lambda *i: tvm.max(a_buf(*i), 0),
             "res_buf") # relu
-        min_buf = te.compute(
+        min_buf = tvm.compute(
             (m, n, env.BATCH, env.BLOCK_OUT),
-            lambda *i: tvm.te.min(max_buf(*i), (1<<(env.INP_WIDTH-1))-1),
+            lambda *i: tvm.min(max_buf(*i), (1<<(env.INP_WIDTH-1))-1),
             "max_buf") # relu
-        res = te.compute(
+        res = tvm.compute(
             (m, n, env.BATCH, env.BLOCK_OUT),
             lambda *i: min_buf(*i).astype(env.inp_dtype),
             "min_buf") # SRAM->DRAM
         # schedule
-        s = te.create_schedule(res.op)
+        s = tvm.create_schedule(res.op)
         s[a_buf].set_scope(env.acc_scope) # SRAM
         s[a_buf].pragma(a_buf.op.axis[0], env.dma_copy) # DRAM->SRAM
         s[max_buf].set_scope(env.acc_scope) # SRAM
@@ -489,27 +488,27 @@ def test_shift_and_scale():
         imm_shift = np.random.randint(0,8)
         imm_scale = np.random.randint(1,5)
         # compute
-        a = te.placeholder(
+        a = tvm.placeholder(
             (m, n, env.BATCH, env.BLOCK_OUT),
             name="a", dtype=env.acc_dtype)
-        a_buf = te.compute(
+        a_buf = tvm.compute(
             (m, n, env.BATCH, env.BLOCK_OUT),
             lambda *i: a(*i),
             "a_buf") # DRAM->SRAM
-        res_shift = te.compute(
+        res_shift = tvm.compute(
             (m, n, env.BATCH, env.BLOCK_OUT),
             lambda *i: a_buf(*i)+imm_shift,
             "res_shift") # compute
-        res_scale = te.compute(
+        res_scale = tvm.compute(
             (m, n, env.BATCH, env.BLOCK_OUT),
             lambda *i: res_shift(*i)>>imm_scale,
             "res_scale") # compute
-        res = te.compute(
+        res = tvm.compute(
             (m, n, env.BATCH, env.BLOCK_OUT),
             lambda *i: res_scale(*i).astype(env.inp_dtype),
             "res") # SRAM->DRAM
         # schedule
-        s = te.create_schedule(res.op)
+        s = tvm.create_schedule(res.op)
         s[a_buf].set_scope(env.acc_scope) # SRAM
         s[res_shift].set_scope(env.acc_scope) # SRAM
         s[res_scale].set_scope(env.acc_scope) # SRAM

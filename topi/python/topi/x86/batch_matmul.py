@@ -16,16 +16,17 @@
 # under the License.
 # pylint: disable=invalid-name,too-many-locals,unused-variable
 """x86 batch_matmul operators"""
-from tvm import te
+from __future__ import absolute_import as _abs
+import tvm
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity
 from tvm.contrib import cblas
-from .. import generic
+from .. import generic, nn
 from ..util import traverse_inline, get_const_tuple, get_max_power2_factor
 
 
-@autotvm.register_topi_compute("batch_matmul.x86")
-def batch_matmul(cfg, x, y):
+@autotvm.register_topi_compute(nn.batch_matmul, "cpu", "direct")
+def _declaration_batch_matmul_nopack(cfg, x, y):
     """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
     data in batch.
 
@@ -33,15 +34,19 @@ def batch_matmul(cfg, x, y):
     ----------
     cfg : ConfigSpace
         Autotvm tuning space config file
-    x : tvm.te.Tensor
+    x : tvm.Tensor
         3-D with shape [batch, M, K]
-    y : tvm.te.Tensor
+    y : tvm.Tensor
         3-D with shape [batch, N, K]
     Returns
     -------
-    output : tvm.te.Tensor
+    output : tvm.Tensor
         3-D with shape [batch, M, N]
     """
+    target = tvm.target.current_target()
+    if "cblas" in target.libs:
+        return cblas.batch_matmul(x, y, False, True)
+
     assert len(x.shape) == 3 and len(
         y.shape) == 3, "only support 3-dim batch_matmul"
     XB, M, XK = get_const_tuple(x.shape)
@@ -51,17 +56,17 @@ def batch_matmul(cfg, x, y):
     B = XB
     K = XK
     if cfg.is_fallback:
-        _default_batch_matmul_config(cfg, M, N, K)
+        _default_batch_matmul_nopack_config(cfg, M, N, K)
 
-    k = te.reduce_axis((0, K), name='k')
-    C = te.compute(
+    k = tvm.reduce_axis((0, K), name='k')
+    C = tvm.compute(
         (B, M, N),
-        lambda b, i, j: te.sum(x[b, i, k] * y[b, j, k], axis=k),
+        lambda b, i, j: tvm.sum(x[b, i, k] * y[b, j, k], axis=k),
         tag='batch_matmul')
     return C
 
 
-@autotvm.register_topi_schedule("batch_matmul.x86")
+@autotvm.register_topi_schedule(generic.schedule_batch_matmul, "cpu", "direct")
 def schedule_batch_matmul(cfg, outs):
     """Schedule for batch_matmul
 
@@ -78,7 +83,11 @@ def schedule_batch_matmul(cfg, outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    s = te.create_schedule([x.op for x in outs])
+    target = tvm.target.current_target()
+    if "cblas" in target.libs:
+        return generic.schedule_extern(outs)
+
+    s = tvm.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if "batch_matmul" in op.tag:
@@ -122,42 +131,9 @@ def schedule_batch_matmul(cfg, outs):
     return s
 
 
-def _default_batch_matmul_config(cfg, M, N, K):
+def _default_batch_matmul_nopack_config(cfg, M, N, K):
     cfg["tile_k"] = SplitEntity([K // 16, 16])
     x_bn = get_max_power2_factor(N, 8)
     cfg["tile_x"] = SplitEntity([N // x_bn, x_bn])
     y_bn = get_max_power2_factor(M, 8)
     cfg["tile_y"] = SplitEntity([M // y_bn, y_bn])
-
-
-@autotvm.register_topi_compute("batch_matmul_cblas.x86")
-def batch_matmul_cblas(cfg, x, y):
-    """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
-    data in batch.
-
-    Parameters
-    ----------
-    cfg : ConfigSpace
-        Autotvm tuning space config file
-    x : tvm.te.Tensor
-        3-D with shape [batch, M, K]
-    y : tvm.te.Tensor
-        3-D with shape [batch, N, K]
-    Returns
-    -------
-    output : tvm.te.Tensor
-        3-D with shape [batch, M, N]
-    """
-    assert len(x.shape) == 3 and len(
-        y.shape) == 3, "only support 3-dim batch_matmul"
-    XB, M, XK = get_const_tuple(x.shape)
-    YB, N, YK = get_const_tuple(y.shape)
-    assert XB == YB, "batch dimension doesn't match"
-    assert XK == YK, "shapes of x and y is inconsistant"
-    cfg.add_flop(XB * M * N * XK * 2)
-    return cblas.batch_matmul(x, y, False, True)
-
-
-@autotvm.register_topi_schedule("batch_matmul_cblas.x86")
-def schedule_batch_matmul_cblas(_, outs):
-    return generic.schedule_extern(outs)
