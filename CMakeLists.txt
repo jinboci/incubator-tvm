@@ -42,6 +42,7 @@ tvm_option(USE_MSVC_MT "Build with MT" OFF)
 tvm_option(USE_MICRO "Build with Micro" OFF)
 tvm_option(INSTALL_DEV "Install compiler infrastructure" OFF)
 tvm_option(HIDE_PRIVATE_SYMBOLS "Compile with -fvisibility=hidden." OFF)
+tvm_option(CUDA_COMPILE_ONLY "Build libtvm.so without libcuda.so" ON)
 
 # 3rdparty libraries
 tvm_option(DLPACK_PATH "Path to DLPACK" "3rdparty/dlpack/include")
@@ -78,6 +79,7 @@ include_directories(${PICOJSON_PATH})
 # initial variables
 set(TVM_LINKER_LIBS "")
 set(TVM_RUNTIME_LINKER_LIBS ${CMAKE_DL_LIBS})
+set(TVM_RUNTIME_LINKER_LIBS_NO_LIBCUDASO ${CMAKE_DL_LIBS})
 
 # Generic compilation options
 if(MSVC)
@@ -299,7 +301,7 @@ if(USE_THREADS)
   target_link_libraries(tvm_runtime Threads::Threads)
 endif(USE_THREADS)
 
-target_link_libraries(tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
+target_link_libraries(tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS_NO_LIBCUDASO})
 target_link_libraries(tvm_topi tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_runtime ${TVM_RUNTIME_LINKER_LIBS})
 
@@ -390,6 +392,9 @@ else(INSTALL_DEV)
 endif(INSTALL_DEV)
 
 # More target definitions
+if(CUDA_COMPILE_ONLY)
+  target_compile_definitions(tvm PRIVATE -DCUDA_COMPILE_ONLY)
+endif()
 if(MSVC)
   target_compile_definitions(tvm PRIVATE -DTVM_EXPORTS)
   target_compile_definitions(tvm_runtime PRIVATE -DTVM_EXPORTS)
