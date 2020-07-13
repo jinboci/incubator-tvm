@@ -79,6 +79,7 @@ include_directories(${PICOJSON_PATH})
 # initial variables
 set(TVM_LINKER_LIBS "")
 set(TVM_RUNTIME_LINKER_LIBS ${CMAKE_DL_LIBS})
+set(TVM_RUNTIME_LINKER_LIBS_NO_LIBCUDASO ${CMAKE_DL_LIBS})
 
 # Generic compilation options
 if(MSVC)
@@ -300,7 +301,7 @@ if(USE_THREADS)
   target_link_libraries(tvm_runtime Threads::Threads)
 endif(USE_THREADS)
 
-target_link_libraries(tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
+target_link_libraries(tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS_NO_LIBCUDASO})
 target_link_libraries(tvm_topi tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_runtime ${TVM_RUNTIME_LINKER_LIBS})
 
