@@ -333,11 +333,9 @@ def wrap_compute_conv2d_transpose(topi_compute):
         out_dtype = attrs.out_dtype
         out_dtype = (inputs[0].dtype if out_dtype in ("same", "")
                      else out_dtype)
-        out = topi_compute(
-            inputs[0], inputs[1], strides, padding, out_dtype)
         output_padding = get_const_tuple(attrs.output_padding)
-        out = topi.nn.pad(out, [0, 0, 0, 0],
-                          [0, 0, output_padding[0], output_padding[1]])
+        out = topi_compute(
+            inputs[0], inputs[1], strides, padding, out_dtype, output_padding)
         return [out]
     return compute_conv2d_transpose
 
@@ -502,9 +500,8 @@ def wrap_compute_conv1d_transpose(topi_compute):
         strides = get_const_tuple(attrs.strides)
         out_dtype = attrs.out_dtype
         out_dtype = (inputs[0].dtype if out_dtype in ("same", "") else out_dtype)
-        out = topi_compute(inputs[0], inputs[1], strides, padding, out_dtype)
         output_padding = get_const_tuple(attrs.output_padding)
-        out = topi.nn.pad(out, [0, 0, 0], [0, 0, output_padding[0]])
+        out = topi_compute(inputs[0], inputs[1], strides, padding, out_dtype, output_padding)
         return [out]
     return _compute_conv1d_tranpsoe
 
@@ -659,9 +656,10 @@ def argsort_strategy(attrs, inputs, out_type, target):
 def wrap_compute_topk(topi_compute):
     """Wrap topk compute"""
     def _compute_topk(attrs, inputs, out_type):
-        k = inputs[1]
         if attrs.k is not None:
             k = attrs.k
+        else:
+            k = inputs[1]
         axis = get_const_int(attrs.axis)
         ret_type = attrs.ret_type
         is_ascend = bool(get_const_int(attrs.is_ascend))
@@ -843,6 +841,13 @@ def schedule_scatter(attrs, outs, target):
     """schedule scatter"""
     with target:
         return topi.generic.schedule_scatter(outs)
+
+# scatter_add
+@generic_func
+def schedule_scatter_add(attrs, outs, target):
+    """schedule scatter_add"""
+    with target:
+        return topi.generic.schedule_scatter_add(outs)
 
 # bitserial_conv2d
 def wrap_compute_bitserial_conv2d(topi_compute):
